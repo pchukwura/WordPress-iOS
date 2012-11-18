@@ -8,7 +8,6 @@
 
 #import <Foundation/Foundation.h>
 #import "AFHTTPClient.h"
-#import "WordPressComRestConstants.h"
 
 extern NSString *const WordPressComRestClientEndpointURL;
 
