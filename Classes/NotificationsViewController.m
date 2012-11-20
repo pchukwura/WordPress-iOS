@@ -298,6 +298,7 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
     } else {
         [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
     }
+    if(note.isUnread) [self.user markNoteAsRead:note success:nil failure:nil];
 }
 
 - (BOOL)noteHasDetailView:(Note *)note {
