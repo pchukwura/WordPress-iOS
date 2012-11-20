@@ -7,6 +7,7 @@
 //
 
 #import "NotificationsViewController.h"
+#import "NotificationsDetailViewController.h"
 #import "WordPressAppDelegate.h"
 #import "WPComOAuthController.h"
 #import "WordPressComApi.h"
@@ -259,6 +260,7 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
 -  (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NotificationsTableViewCell *cell = (NotificationsTableViewCell *)[tableView dequeueReusableCellWithIdentifier:NotificationsTableViewNoteCellIdentifier];
     cell.note = [self.notesFetchedResultsController.fetchedObjects objectAtIndex:indexPath.row];
+    cell.accessoryType = [self noteHasDetailView:cell.note] ? UITableViewCellAccessoryDisclosureIndicator : UITableViewCellAccessoryNone;
     return cell;
 }
 
@@ -285,6 +287,21 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
     Note *note = [self.notesFetchedResultsController.fetchedObjects objectAtIndex:indexPath.row];
     return [note.type isEqualToString:@"comment"] ? 110.f : 63.f;
     
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    Note *note = [self.notesFetchedResultsController.fetchedObjects objectAtIndex:indexPath.row];
+    if ([self noteHasDetailView:note]) {
+        NotificationsDetailViewController *detailViewController = [[NotificationsDetailViewController alloc] init];
+        detailViewController.note = note;
+        [self.panelNavigationController pushViewController:detailViewController animated:YES];
+    } else {
+        [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+    }
+}
+
+- (BOOL)noteHasDetailView:(Note *)note {
+    return [note isComment];
 }
 
 #pragma mark - NSFetchedResultsController

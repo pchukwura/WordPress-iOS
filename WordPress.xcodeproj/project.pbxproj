@@ -417,6 +417,7 @@
 		C59D3D4B0E6410D300AA591D /* NSString+XMLExtensions.m in Sources */ = {isa = PBXBuildFile; fileRef = C59D3D4A0E6410D300AA591D /* NSString+XMLExtensions.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		C5C272DF0E7EC00A0034AA46 /* uncheck.png in Resources */ = {isa = PBXBuildFile; fileRef = C5C272DE0E7EC00A0034AA46 /* uncheck.png */; };
 		C5C272E10E7EC00F0034AA46 /* check.png in Resources */ = {isa = PBXBuildFile; fileRef = C5C272E00E7EC00F0034AA46 /* check.png */; };
+		CC0199E9165C17020073A966 /* NotificationsDetailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CC0199E8165C17020073A966 /* NotificationsDetailViewController.m */; };
 		CC0E20AE15B87DA100D3468B /* WPWebBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = CC0E20AD15B87DA100D3468B /* WPWebBridge.m */; };
 		CC1D80111656D901002A542F /* WordPressComRestClient.m in Sources */ = {isa = PBXBuildFile; fileRef = CC1D80101656D901002A542F /* WordPressComRestClient.m */; };
 		CC1D80141656D938002A542F /* NotificationsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CC1D80121656D937002A542F /* NotificationsViewController.m */; };
@@ -1088,6 +1089,8 @@
 		C59D3D4A0E6410D300AA591D /* NSString+XMLExtensions.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSString+XMLExtensions.m"; sourceTree = "<group>"; };
 		C5C272DE0E7EC00A0034AA46 /* uncheck.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = uncheck.png; sourceTree = "<group>"; };
 		C5C272E00E7EC00F0034AA46 /* check.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = check.png; sourceTree = "<group>"; };
+		CC0199E7165C17020073A966 /* NotificationsDetailViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NotificationsDetailViewController.h; sourceTree = "<group>"; };
+		CC0199E8165C17020073A966 /* NotificationsDetailViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NotificationsDetailViewController.m; sourceTree = "<group>"; };
 		CC0E20AC15B87DA100D3468B /* WPWebBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WPWebBridge.h; sourceTree = "<group>"; };
 		CC0E20AD15B87DA100D3468B /* WPWebBridge.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WPWebBridge.m; sourceTree = "<group>"; };
 		CC1D800F1656D901002A542F /* WordPressComRestClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WordPressComRestClient.h; path = Classes/WordPressApi/WordPressComRestClient.h; sourceTree = SOURCE_ROOT; };
@@ -2342,6 +2345,8 @@
 				CC1D80121656D937002A542F /* NotificationsViewController.m */,
 				CC1D801F165807D6002A542F /* NotificationsTableViewDatasource.h */,
 				CC1D8020165807D6002A542F /* NotificationsTableViewDatasource.m */,
+				CC0199E7165C17020073A966 /* NotificationsDetailViewController.h */,
+				CC0199E8165C17020073A966 /* NotificationsDetailViewController.m */,
 			);
 			name = Notifications;
 			sourceTree = "<group>";
@@ -3316,6 +3321,7 @@
 				CC1D8021165807D6002A542F /* NotificationsTableViewDatasource.m in Sources */,
 				CC1D802B165830AB002A542F /* NotificationsTableViewCell.m in Sources */,
 				CC1D80311658354C002A542F /* Note.m in Sources */,
+				CC0199E9165C17020073A966 /* NotificationsDetailViewController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
