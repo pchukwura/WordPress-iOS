@@ -159,6 +159,7 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
         self.refreshing = NO;
         [self notificationsDidFinishRefreshingWithError:nil];
         [self reloadNotes];
+        [self updateLastSeenTime];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
         self.refreshing = NO;
         [self notificationsDidFinishRefreshingWithError:error];
@@ -204,6 +205,16 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
         
     }];
 
+}
+
+- (void)updateLastSeenTime {
+    // get the most recent note
+    NSArray *notes = self.notesFetchedResultsController.fetchedObjects;
+    if (notes > 0) {
+        Note *note = [notes objectAtIndex:0];
+        [self.user updateNoteLastSeenTime:note.timestamp success:nil failure:nil];
+    }
+    
 }
 
 
