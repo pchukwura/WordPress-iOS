@@ -696,6 +696,9 @@
         if (noteData)
             [self showNotificationForNoteType: [noteData objectForKey:@"type"]];
     }
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"WordPressComUpdateNoteCount"
+                                                        object:nil
+                                                      userInfo:nil];
 }
 
 - (void)showNotificationForNoteType: (NSString *)noteType {
