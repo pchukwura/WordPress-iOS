@@ -307,7 +307,7 @@ NSString *const NotificationsTableViewNoteCellIdentifier = @"NotificationsTableV
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     Note *note = [self.notesFetchedResultsController.fetchedObjects objectAtIndex:indexPath.row];
     if ([self noteHasDetailView:note]) {
-        NotificationsDetailViewController *detailViewController = [[NotificationsDetailViewController alloc] init];
+        NotificationsDetailViewController *detailViewController = [[NotificationsDetailViewController alloc] initWithNibName:@"NotificationsDetailViewController" bundle:nil];
         detailViewController.note = note;
         [self.panelNavigationController pushViewController:detailViewController animated:YES];
     } else {

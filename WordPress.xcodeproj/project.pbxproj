@@ -126,6 +126,7 @@
 		37158C8F1669408200732B2D /* menu_notification_spacer@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 37158C8B1669408200732B2D /* menu_notification_spacer@2x.png */; };
 		37158C901669408200732B2D /* menu_notification_spacer_down@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 37158C8C1669408200732B2D /* menu_notification_spacer_down@2x.png */; };
 		37158C911669408200732B2D /* menu_notification_spacer_down.png in Resources */ = {isa = PBXBuildFile; fileRef = 37158C8D1669408200732B2D /* menu_notification_spacer_down.png */; };
+		37195B82166A5DDC005F2292 /* NotificationsDetailViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 37195B81166A5DDC005F2292 /* NotificationsDetailViewController.xib */; };
 		371C162A15A3A3F800BC653C /* navbar_bg.png in Resources */ = {isa = PBXBuildFile; fileRef = 371C161E15A3A3F800BC653C /* navbar_bg.png */; };
 		371C162B15A3A3F800BC653C /* navbar_bg@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 371C161F15A3A3F800BC653C /* navbar_bg@2x.png */; };
 		371C162D15A3A3F800BC653C /* navbar_button_bg_active@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 371C162115A3A3F800BC653C /* navbar_button_bg_active@2x.png */; };
@@ -752,6 +753,7 @@
 		37158C8B1669408200732B2D /* menu_notification_spacer@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menu_notification_spacer@2x.png"; sourceTree = "<group>"; };
 		37158C8C1669408200732B2D /* menu_notification_spacer_down@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menu_notification_spacer_down@2x.png"; sourceTree = "<group>"; };
 		37158C8D1669408200732B2D /* menu_notification_spacer_down.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = menu_notification_spacer_down.png; sourceTree = "<group>"; };
+		37195B81166A5DDC005F2292 /* NotificationsDetailViewController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NotificationsDetailViewController.xib; sourceTree = "<group>"; };
 		371C161E15A3A3F800BC653C /* navbar_bg.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = navbar_bg.png; sourceTree = "<group>"; };
 		371C161F15A3A3F800BC653C /* navbar_bg@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "navbar_bg@2x.png"; sourceTree = "<group>"; };
 		371C162115A3A3F800BC653C /* navbar_button_bg_active@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "navbar_button_bg_active@2x.png"; sourceTree = "<group>"; };
@@ -1605,6 +1607,15 @@
 				30AF6CFC13C230C600A29C00 /* AboutViewController.m */,
 			);
 			name = About;
+			sourceTree = "<group>";
+		};
+		37195B7F166A5DDC005F2292 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				CC1D80151656DE28002A542F /* NotificationsViewController.xib */,
+				37195B81166A5DDC005F2292 /* NotificationsDetailViewController.xib */,
+			);
+			name = Notifications;
 			sourceTree = "<group>";
 		};
 		371C161C15A3A3AD00BC653C /* Navigation Bar */ = {
@@ -2612,6 +2623,7 @@
 		E19472D8134E3E4A00879F63 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				37195B7F166A5DDC005F2292 /* Notifications */,
 				373C5181156D0504007C2977 /* Panels */,
 				ACFF1DC00E231EF600EC6BF5 /* Blog */,
 				C50E78130E71648100991509 /* Comments */,
@@ -2627,7 +2639,6 @@
 				836FECEA12715E2A000309D8 /* CrashReportView.xib */,
 				A0E293FD0E21037200C6919C /* WPAddCategoryViewController.xib */,
 				ACAC7B690E1F8C0700AC7074 /* WPSelectionTableViewController.xib */,
-				CC1D80151656DE28002A542F /* NotificationsViewController.xib */,
 			);
 			name = UI;
 			sourceTree = "<group>";
@@ -3183,6 +3194,7 @@
 				37158C8F1669408200732B2D /* menu_notification_spacer@2x.png in Resources */,
 				37158C901669408200732B2D /* menu_notification_spacer_down@2x.png in Resources */,
 				37158C911669408200732B2D /* menu_notification_spacer_down.png in Resources */,
+				37195B82166A5DDC005F2292 /* NotificationsDetailViewController.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
