@@ -1148,6 +1148,7 @@
             /*
              [remoteNotif objectForKey:@"blog_id"]
              [remoteNotif objectForKey:@"post_id"]
+             [remoteNotif objectForKey:@"liker_id"]
              */
         } else if([nType isEqualToString:@"cl"]){
             //comment like
