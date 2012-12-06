@@ -12,6 +12,7 @@
 #import "PanelNavigationController.h"
 #import "SidebarViewController.h"
 #import "UIDevice+WordPressIdentifier.h"
+#import "WordPressComApi.h"
 
 @interface WordPressAppDelegate (Private)
 - (void)setAppBadge;
@@ -955,6 +956,13 @@
     switch (application.applicationState) {
         case UIApplicationStateActive:
             NSLog(@"app state UIApplicationStateActive"); //application is in foreground
+            
+            //If we're on the iPhone show the menu icon notification instead of an alert
+            if (IS_IPHONE && self.panelNavigationController) {
+                [[WordPressComApi sharedApi] checkForNewUnseenNotifications];
+                return;
+            }
+            
             //we should show an alert since the OS doesn't show anything in this case. Unfortunately no sound!!
             if([self isAlertRunning] != YES) {
                 id comment = [[userInfo objectForKey:@"aps"] objectForKey:@"alert"];
