@@ -20,6 +20,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 
 @property (nonatomic, strong) NSFetchedResultsController *resultsController;
 @property (nonatomic) BOOL swipeActionsEnabled;
+@property (nonatomic) BOOL infiniteScrollEnabled;
 @property (nonatomic, strong, readonly) UIView *swipeView;
 @property (nonatomic, strong) UITableViewCell *swipeCell;
 @property (nonatomic, strong) NSIndexPath *firstVisibleIndexPathBeforeDisappear;
@@ -42,6 +43,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     UISwipeGestureRecognizer *_leftSwipeGestureRecognizer;
     UISwipeGestureRecognizer *_rightSwipeGestureRecognizer;
     UISwipeGestureRecognizerDirection _swipeDirection;
+    UIActivityIndicatorView *_activityFooter;
     BOOL _animatingRemovalOfModerationSwipeView;
     BOOL didPromptForCredentials;
     BOOL _isSyncing;
@@ -50,6 +52,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 @synthesize blog = _blog;
 @synthesize resultsController = _resultsController;
 @synthesize swipeActionsEnabled = _swipeActionsEnabled;
+@synthesize infiniteScrollEnabled = _infiniteScrollEnabled;
 @synthesize swipeView = _swipeView;
 @synthesize swipeCell = _swipeCell;
 @synthesize firstVisibleIndexPathBeforeDisappear;
@@ -80,6 +83,10 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     
     if (self.swipeActionsEnabled) {
         [self enableSwipeGestureRecognizer];
+    }
+
+    if (self.infiniteScrollEnabled) {
+        [self enableInfiniteScrolling];
     }
 }
 
@@ -198,6 +205,24 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     return _swipeView;
 }
 
+- (void)setInfiniteScrollEnabled:(BOOL)infiniteScrollEnabled {
+    if (infiniteScrollEnabled == _infiniteScrollEnabled)
+        return;
+
+    _infiniteScrollEnabled = infiniteScrollEnabled;
+    if (self.isViewLoaded) {
+        if (_infiniteScrollEnabled) {
+            [self enableInfiniteScrolling];
+        } else {
+            [self disableInfiniteScrolling];
+        }
+    }
+}
+
+- (BOOL)infiniteScrollEnabled {
+    return _infiniteScrollEnabled;
+}
+
 #pragma mark - Table view data source
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -227,6 +252,25 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     [self configureCell:cell atIndexPath:indexPath];
 
     return cell;
+}
+
+- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
+	if (IS_IPAD == YES) {
+		cell.accessoryType = UITableViewCellAccessoryNone;
+	}
+
+    // Are we approaching the end of the table?
+    if ((indexPath.section + 1 == [self numberOfSectionsInTableView:tableView]) && (indexPath.row + 4 >= [self tableView:tableView numberOfRowsInSection:indexPath.section]) && [self tableView:tableView numberOfRowsInSection:indexPath.section] > 10) {
+        // Only 3 rows till the end of table
+        if (![self isSyncing] && [self hasMoreContent]) {
+            [_activityFooter startAnimating];
+            [self loadMoreWithSuccess:^{
+                [_activityFooter stopAnimating];
+            } failure:^(NSError *error) {
+                [_activityFooter stopAnimating];
+            }];
+        }
+    }
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -687,6 +731,27 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     [self swipe:recognizer direction:UISwipeGestureRecognizerDirectionRight];
 }
 
+#pragma mark - Infinite scrolling
+
+- (void)enableInfiniteScrolling {
+    if (_activityFooter == nil) {
+        CGRect rect = CGRectMake(145.0, 10.0, 30.0, 30.0);
+        _activityFooter = [[UIActivityIndicatorView alloc] initWithFrame:rect];
+        _activityFooter.activityIndicatorViewStyle = UIActivityIndicatorViewStyleGray;
+        _activityFooter.hidesWhenStopped = YES;
+        _activityFooter.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+        [_activityFooter stopAnimating];
+    }
+    UIView *footerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 320.0, 50.0)];
+    footerView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [footerView addSubview:_activityFooter];
+    self.tableView.tableFooterView = footerView;
+}
+
+- (void)disableInfiniteScrolling {
+    self.tableView.tableFooterView = nil;
+    _activityFooter = nil;
+}
 
 #pragma mark - Subclass methods
 
@@ -743,7 +808,8 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     return NO;
 }
 
-- (void)loadMoreContent {
+- (void)loadMoreWithSuccess:(void (^)())success failure:(void (^)(NSError *error))failure {
+    AssertSubclassMethod();
 }
 
 @end
