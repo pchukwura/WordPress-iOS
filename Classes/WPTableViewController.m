@@ -44,6 +44,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     UISwipeGestureRecognizerDirection _swipeDirection;
     BOOL _animatingRemovalOfModerationSwipeView;
     BOOL didPromptForCredentials;
+    BOOL _isSyncing;
 }
 
 @synthesize blog = _blog;
@@ -492,11 +493,14 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
         [_refreshHeaderView performSelector:@selector(egoRefreshScrollViewDataSourceDidFinishedLoading:) withObject:self.tableView afterDelay:0.1];
         return;
     }
-    
+
+    _isSyncing = YES;
     [self syncItemsWithUserInteraction:userInteraction success:^{
         [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:self.tableView];
+        _isSyncing = NO;
     } failure:^(NSError *error) {
         [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:self.tableView];
+        _isSyncing = NO;
         if (self.blog) {
             if (error.code == 405) {
                 // FIXME: this looks like "Enable XML-RPC" which is going away
@@ -716,7 +720,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 }
 
 - (BOOL)isSyncing {
-	AssertSubclassMethod();
+    return _isSyncing;
 }
 
 - (UITableViewCell *)newCell {
