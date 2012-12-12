@@ -571,7 +571,7 @@
 
 - (void)didSaveSelectedBlogsInBackground {
     [self.navigationController popToRootViewControllerAnimated:YES];
-    [appDelegate sendPushNotificationBlogsList]; 
+    [[WordPressComApi sharedApi] syncPushNotificationInfo];
 }
 
 - (void)createBlog:(NSDictionary *)blogInfo {
@@ -584,7 +584,7 @@
 	[blog dataSave];
     [blog syncBlogWithSuccess:^{
         if( ! [blog isWPcom] )
-            [appDelegate sendPushNotificationBlogsList];
+            [[WordPressComApi sharedApi] syncPushNotificationInfo];
     }
                       failure:nil];
 	[[NSNotificationCenter defaultCenter] postNotificationName:@"BlogsRefreshNotification" object:nil];
