@@ -20,6 +20,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 
 @property (nonatomic, strong) NSFetchedResultsController *resultsController;
 @property (nonatomic) BOOL swipeActionsEnabled;
+@property (nonatomic) BOOL infiniteScrollEnabled;
 @property (nonatomic, strong, readonly) UIView *swipeView;
 @property (nonatomic, strong) UITableViewCell *swipeCell;
 @property (nonatomic, strong) NSIndexPath *firstVisibleIndexPathBeforeDisappear;
@@ -42,13 +43,16 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     UISwipeGestureRecognizer *_leftSwipeGestureRecognizer;
     UISwipeGestureRecognizer *_rightSwipeGestureRecognizer;
     UISwipeGestureRecognizerDirection _swipeDirection;
+    UIActivityIndicatorView *_activityFooter;
     BOOL _animatingRemovalOfModerationSwipeView;
     BOOL didPromptForCredentials;
+    BOOL _isSyncing;
 }
 
 @synthesize blog = _blog;
 @synthesize resultsController = _resultsController;
 @synthesize swipeActionsEnabled = _swipeActionsEnabled;
+@synthesize infiniteScrollEnabled = _infiniteScrollEnabled;
 @synthesize swipeView = _swipeView;
 @synthesize swipeCell = _swipeCell;
 @synthesize firstVisibleIndexPathBeforeDisappear;
@@ -57,13 +61,6 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 {
     _resultsController.delegate = nil;
     editSiteViewController.delegate = nil;
-}
-
-- (id)initWithBlog:(Blog *)blog {
-    if (self) {
-        _blog = blog;
-    }
-    return self;
 }
 
 - (void)viewDidLoad
@@ -86,6 +83,10 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     
     if (self.swipeActionsEnabled) {
         [self enableSwipeGestureRecognizer];
+    }
+
+    if (self.infiniteScrollEnabled) {
+        [self enableInfiniteScrolling];
     }
 }
 
@@ -204,6 +205,24 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     return _swipeView;
 }
 
+- (void)setInfiniteScrollEnabled:(BOOL)infiniteScrollEnabled {
+    if (infiniteScrollEnabled == _infiniteScrollEnabled)
+        return;
+
+    _infiniteScrollEnabled = infiniteScrollEnabled;
+    if (self.isViewLoaded) {
+        if (_infiniteScrollEnabled) {
+            [self enableInfiniteScrolling];
+        } else {
+            [self disableInfiniteScrolling];
+        }
+    }
+}
+
+- (BOOL)infiniteScrollEnabled {
+    return _infiniteScrollEnabled;
+}
+
 #pragma mark - Table view data source
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -235,11 +254,36 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     return cell;
 }
 
+- (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
+	if (IS_IPAD == YES) {
+		cell.accessoryType = UITableViewCellAccessoryNone;
+	}
+
+    // Are we approaching the end of the table?
+    if ((indexPath.section + 1 == [self numberOfSectionsInTableView:tableView]) && (indexPath.row + 4 >= [self tableView:tableView numberOfRowsInSection:indexPath.section]) && [self tableView:tableView numberOfRowsInSection:indexPath.section] > 10) {
+        // Only 3 rows till the end of table
+        if (![self isSyncing] && [self hasMoreContent]) {
+            [_activityFooter startAnimating];
+            [self loadMoreWithSuccess:^{
+                [_activityFooter stopAnimating];
+            } failure:^(NSError *error) {
+                [_activityFooter stopAnimating];
+            }];
+        }
+    }
+}
+
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
     return kCellHeight;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    id <NSFetchedResultsSectionInfo> sectionInfo = nil;
+    sectionInfo = [[self.resultsController sections] objectAtIndex:section];
+    // Don't show section headers if there are no named sections
+    if ([[self.resultsController sections] count] <= 1 && [sectionInfo name] == nil) {
+        return 0.f;
+    }
     return kSectionHeaderHight;
 }
 
@@ -267,11 +311,19 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
         return _resultsController;
     }
 
-    NSManagedObjectContext *moc = self.blog.managedObjectContext;    
+    NSManagedObjectContext *moc;
+    NSString *cacheName;
+    if (self.blog) {
+        moc = self.blog.managedObjectContext;
+        cacheName = [NSString stringWithFormat:@"%@-%@", [self entityName], [self.blog objectID]];
+    } else {
+        moc = [[WordPressAppDelegate sharedWordPressApplicationDelegate] managedObjectContext];
+        cacheName = [self entityName];
+    }
     _resultsController = [[NSFetchedResultsController alloc] initWithFetchRequest:[self fetchRequest]
                                                              managedObjectContext:moc
                                                                sectionNameKeyPath:[self sectionNameKeyPath]
-                                                                        cacheName:[NSString stringWithFormat:@"%@-%@", [self entityName], [self.blog objectID]]];
+                                                                        cacheName:cacheName];
     _resultsController.delegate = self;
         
     NSError *error = nil;
@@ -491,45 +543,52 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
         [_refreshHeaderView performSelector:@selector(egoRefreshScrollViewDataSourceDidFinishedLoading:) withObject:self.tableView afterDelay:0.1];
         return;
     }
-    
+
+    _isSyncing = YES;
     [self syncItemsWithUserInteraction:userInteraction success:^{
         [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:self.tableView];
+        _isSyncing = NO;
     } failure:^(NSError *error) {
         [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:self.tableView];
-        if (error.code == 405) {
-            // FIXME: this looks like "Enable XML-RPC" which is going away
-            // If it's not, don't rely on whatever the error message is if we are showing custom actions like 'Enable Now'
-            UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Couldn't sync", @"")
-                                                                message:[error localizedDescription]
-                                                               delegate:self
-                                                      cancelButtonTitle:NSLocalizedString(@"Need Help?", @"")
-                                                      otherButtonTitles:NSLocalizedString(@"Enable Now", @""), nil];
-            
-            alertView.tag = 30;
-            [alertView show];
-            
-        } else if (error.code == 403 && editSiteViewController == nil) {
-			UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Couldn't Connect", @"")
-																message:NSLocalizedString(@"The username or password stored in the app may be out of date. Please re-enter your password in the settings and try again.", @"")
-															   delegate:nil
-													  cancelButtonTitle:nil
-													  otherButtonTitles:NSLocalizedString(@"OK", @""), nil];
-			[alertView show];
+        _isSyncing = NO;
+        if (self.blog) {
+            if (error.code == 405) {
+                // FIXME: this looks like "Enable XML-RPC" which is going away
+                // If it's not, don't rely on whatever the error message is if we are showing custom actions like 'Enable Now'
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Couldn't sync", @"")
+                                                                    message:[error localizedDescription]
+                                                                   delegate:self
+                                                          cancelButtonTitle:NSLocalizedString(@"Need Help?", @"")
+                                                          otherButtonTitles:NSLocalizedString(@"Enable Now", @""), nil];
 
-            // bad login/pass combination
-            editSiteViewController = [[EditSiteViewController alloc] initWithNibName:nil bundle:nil];
-            editSiteViewController.blog = self.blog;
-            editSiteViewController.isCancellable = YES;
-            editSiteViewController.delegate = self;
-            UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:editSiteViewController];
+                alertView.tag = 30;
+                [alertView show];
 
-            if(IS_IPAD == YES) {
-                navController.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
-                navController.modalPresentationStyle = UIModalPresentationFormSheet;
+            } else if (error.code == 403 && editSiteViewController == nil) {
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Couldn't Connect", @"")
+                                                                    message:NSLocalizedString(@"The username or password stored in the app may be out of date. Please re-enter your password in the settings and try again.", @"")
+                                                                   delegate:nil
+                                                          cancelButtonTitle:nil
+                                                          otherButtonTitles:NSLocalizedString(@"OK", @""), nil];
+                [alertView show];
+
+                // bad login/pass combination
+                editSiteViewController = [[EditSiteViewController alloc] initWithNibName:nil bundle:nil];
+                editSiteViewController.blog = self.blog;
+                editSiteViewController.isCancellable = YES;
+                editSiteViewController.delegate = self;
+                UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:editSiteViewController];
+
+                if(IS_IPAD == YES) {
+                    navController.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+                    navController.modalPresentationStyle = UIModalPresentationFormSheet;
+                }
+
+                [self.panelNavigationController presentModalViewController:navController animated:YES];
             }
-
-            [self.panelNavigationController presentModalViewController:navController animated:YES];
-
+        } else {
+            // For non-blog tables (notifications), just show the error for now
+            [WPError showAlertWithError:error];
         }
     }];
 }
@@ -672,12 +731,35 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     [self swipe:recognizer direction:UISwipeGestureRecognizerDirectionRight];
 }
 
+#pragma mark - Infinite scrolling
+
+- (void)enableInfiniteScrolling {
+    if (_activityFooter == nil) {
+        CGRect rect = CGRectMake(145.0, 10.0, 30.0, 30.0);
+        _activityFooter = [[UIActivityIndicatorView alloc] initWithFrame:rect];
+        _activityFooter.activityIndicatorViewStyle = UIActivityIndicatorViewStyleGray;
+        _activityFooter.hidesWhenStopped = YES;
+        _activityFooter.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+        [_activityFooter stopAnimating];
+    }
+    UIView *footerView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, 320.0, 50.0)];
+    footerView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [footerView addSubview:_activityFooter];
+    self.tableView.tableFooterView = footerView;
+}
+
+- (void)disableInfiniteScrolling {
+    self.tableView.tableFooterView = nil;
+    _activityFooter = nil;
+}
 
 #pragma mark - Subclass methods
 
 #define AssertSubclassMethod() @throw [NSException exceptionWithName:NSInternalInconsistencyException\
                                                     reason:[NSString stringWithFormat:@"You must override %@ in a subclass", NSStringFromSelector(_cmd)] \
                                                     userInfo:nil]
+
+#define AssertNoBlogSubclassMethod() NSAssert(self.blog, @"You must override %@ in a subclass if there is no blog", NSStringFromSelector(_cmd))
 
 - (NSString *)entityName {
     AssertSubclassMethod();
@@ -688,6 +770,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 }
 
 - (NSFetchRequest *)fetchRequest {
+    AssertNoBlogSubclassMethod();
     NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
     [fetchRequest setEntity:[NSEntityDescription entityForName:[self entityName] inManagedObjectContext:self.blog.managedObjectContext]];
     [fetchRequest setPredicate:[NSPredicate predicateWithFormat:@"blog == %@", self.blog]];
@@ -708,7 +791,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 }
 
 - (BOOL)isSyncing {
-	AssertSubclassMethod();
+    return _isSyncing;
 }
 
 - (UITableViewCell *)newCell {
@@ -725,7 +808,8 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     return NO;
 }
 
-- (void)loadMoreContent {
+- (void)loadMoreWithSuccess:(void (^)())success failure:(void (^)(NSError *error))failure {
+    AssertSubclassMethod();
 }
 
 @end

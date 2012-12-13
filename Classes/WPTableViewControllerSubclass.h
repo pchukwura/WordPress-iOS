@@ -20,6 +20,11 @@
 @property (nonatomic) BOOL swipeActionsEnabled;
 
 /**
+ Enables the infinteScrolling
+ */
+@property (nonatomic) BOOL infiniteScrollEnabled;
+
+/**
  Sync content with the server
  
  Subclasses can call this method if they need to invoke a refresh, but it's not meant to be implemented by subclasses.
@@ -92,6 +97,9 @@
 
 /**
  Returns a boolean indicating if the blog is syncing that type of item right now
+ 
+ Optional. If a subclass doesn't implement this method, WPTableViewController tracks syncing internally.
+ Subclasses might want to implement this if the objects are going to be synced from other parts of the app
  */
 - (BOOL)isSyncing;
 
@@ -105,8 +113,13 @@
 
 /**
  Load extra content for infinite scrolling
+
+ Subclasses *MUST* implement this method if infiniteScrollingEnabled is YES
+
+ @param success A block that's executed if the sync was successful
+ @param failure A block that's executed if there was any error
  */
-- (void)loadMoreContent;
+- (void)loadMoreWithSuccess:(void (^)())success failure:(void (^)(NSError *error))failure;
 
 /**
  Configures the secondary view to show when you swipe on a cell
