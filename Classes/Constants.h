@@ -146,6 +146,7 @@
 #define kNotificationTypePostLike @"pl"
 #define kNotificationTypeFollowBlog @"sb"
 #define kNotificationTypeReblog @"rb"
+#define kNotificationTypeAchievement @"ac"
 
 typedef NS_ENUM(NSUInteger, MediaType) {
 	kImage,
