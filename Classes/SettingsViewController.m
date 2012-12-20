@@ -245,7 +245,7 @@ typedef enum {
     } else if (section == SettingsSectionMedia) {
         return NSLocalizedString(@"Media", @"");
     } else if (section == SettingsSectionNotifications) {
-        return nil;
+        return NSLocalizedString(@"Notifications", @"");
     } else if (section == SettingsSectionInfo) {
         return NSLocalizedString(@"App Info", @"");
     }
@@ -302,7 +302,7 @@ typedef enum {
     } else if (indexPath.section == SettingsSectionNotifications) {
         if ([[WordPressComApi sharedApi] hasCredentials]) {
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            cell.textLabel.text = NSLocalizedString(@"Notifications", @"");
+            cell.textLabel.text = NSLocalizedString(@"Manage Notifications", @"");
         }
     } else if (indexPath.section == SettingsSectionInfo) {
         if (indexPath.row == 0) {
