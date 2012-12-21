@@ -3788,6 +3788,7 @@
 				OTHER_CFLAGS = (
 					"-Wno-format",
 					"-Wno-format-security",
+					"-Wno-deprecated",
 				);
 				PRODUCT_NAME = WordPress;
 				STRIP_INSTALLED_PRODUCT = NO;
