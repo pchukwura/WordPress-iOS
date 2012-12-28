@@ -14,6 +14,7 @@
 #import "WPWebViewController.h"
 #import "NoteCommentCell.h"
 #import "NoteComment.h"
+#import "NSString+XMLExtensions.h"
 
 #define APPROVE_BUTTON_TAG 1
 #define UNAPPROVE_BUTTON_TAG 2
@@ -147,7 +148,7 @@ const CGFloat NotificationsCommentDetailViewControllerReplyTextViewDefaultHeight
     if (self.post == nil) {
         [self.user getPath:postPath parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
             self.post = responseObject;
-            self.postBanner.titleLabel.text = [self.post valueForKeyPath:@"title"];
+            self.postBanner.titleLabel.text = [[self.post valueForKeyPath:@"title"] stringByDecodingXMLCharacters];
             id authorAvatarURL = [self.post valueForKeyPath:@"author.avatar_URL"];
             if ([authorAvatarURL isKindOfClass:[NSString class]]) {
                 [self.postBanner.avatarImageView setImageWithURL:[NSURL URLWithString:authorAvatarURL]];
