@@ -245,7 +245,10 @@ typedef enum {
     } else if (section == SettingsSectionMedia) {
         return NSLocalizedString(@"Media", @"");
     } else if (section == SettingsSectionNotifications) {
-        return NSLocalizedString(@"Notifications", @"");
+        if ([[WordPressComApi sharedApi] hasCredentials])
+            return NSLocalizedString(@"Notifications", @"");
+        else
+            return nil;
     } else if (section == SettingsSectionInfo) {
         return NSLocalizedString(@"App Info", @"");
     }
