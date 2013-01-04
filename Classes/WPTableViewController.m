@@ -567,7 +567,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 - (void)configureNoResultsView {
     if (![self isViewLoaded]) return;
     
-    if (self.resultsController && [[_resultsController fetchedObjects] count] == 0) {
+    if (self.resultsController && [[_resultsController fetchedObjects] count] == 0 && !self.isSyncing) {
         // Show no results view.
 
         NSString *ttl = NSLocalizedString(@"No %@ yet", @"A string format. The '%@' will be replaced by the relevant type of object, posts, pages or comments.");
@@ -622,11 +622,12 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
     _isSyncing = YES;
     [self syncItemsWithUserInteraction:userInteraction success:^{
         [self hideRefreshHeader];
-        [self configureNoResultsView];
         _isSyncing = NO;
+        [self configureNoResultsView];
     } failure:^(NSError *error) {
         [self hideRefreshHeader];
         _isSyncing = NO;
+        [self configureNoResultsView];
         if (self.blog) {
             if (error.code == 405) {
                 // Prompt to enable XML-RPC using the default message provided from the WordPress site.
