@@ -1320,7 +1320,7 @@
 		E10B3663158F3B9500419A93 /* CrashReporter.framework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.framework; name = CrashReporter.framework; path = Classes/CrashReporter.framework; sourceTree = "<group>"; };
 		E114D798153D85A800984182 /* WPError.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WPError.h; sourceTree = "<group>"; };
 		E114D799153D85A800984182 /* WPError.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WPError.m; sourceTree = "<group>"; };
-		E115F2D116776A2900CCF00D /* WordPress 8.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WordPress 8.xcdatamodel"; sourceTree = "<group>"; };
+		E115F2D116776A2900CCF00D /* WordPress 8.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "WordPress 8.xcdatamodel"; sourceTree = "<group>"; };
 		E11930C21312F8A800F34124 /* FakeMigration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FakeMigration.h; sourceTree = "<group>"; };
 		E11930C31312F8A800F34124 /* FakeMigration.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FakeMigration.m; sourceTree = "<group>"; };
 		E11C91CB135771010072A811 /* blockquote.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = blockquote.png; sourceTree = "<group>"; };
@@ -1470,6 +1470,7 @@
 		E1B7B982131553FF005318BD /* FileLogger.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = FileLogger.m; sourceTree = "<group>"; };
 		E1C43CA512E4D09E00330262 /* PageViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PageViewController.h; sourceTree = "<group>"; };
 		E1C43CA612E4D09E00330262 /* PageViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PageViewController.m; sourceTree = "<group>"; };
+		E1C807471696F72E00E545A6 /* WordPress 9.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WordPress 9.xcdatamodel"; sourceTree = "<group>"; };
 		E1CAAE3513F413F00000C58D /* WPKeyboardToolbar.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WPKeyboardToolbar.h; sourceTree = "<group>"; };
 		E1CAAE3613F413F00000C58D /* WPKeyboardToolbar.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WPKeyboardToolbar.m; sourceTree = "<group>"; };
 		E1CAAE3813F4142E0000C58D /* WPKeyboardToolbarButtonItem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WPKeyboardToolbarButtonItem.h; sourceTree = "<group>"; };
@@ -4151,6 +4152,7 @@
 			isa = XCVersionGroup;
 			children = (
 				E1874BFE161C5DBC0058BDC4 /* WordPress 7.xcdatamodel */,
+				E1C807471696F72E00E545A6 /* WordPress 9.xcdatamodel */,
 				E115F2D116776A2900CCF00D /* WordPress 8.xcdatamodel */,
 				FD374343156CF4B800BAB5B5 /* WordPress 6.xcdatamodel */,
 				E1472EF915344A2A00D08657 /* WordPress 5.xcdatamodel */,
@@ -4159,7 +4161,7 @@
 				8350E15911D28B4A00A7B073 /* WordPress.xcdatamodel */,
 				E125443D12BF5A7200D87A0A /* WordPress 2.xcdatamodel */,
 			);
-			currentVersion = E115F2D116776A2900CCF00D /* WordPress 8.xcdatamodel */;
+			currentVersion = E1C807471696F72E00E545A6 /* WordPress 9.xcdatamodel */;
 			name = WordPress.xcdatamodeld;
 			path = Classes/WordPress.xcdatamodeld;
 			sourceTree = "<group>";
