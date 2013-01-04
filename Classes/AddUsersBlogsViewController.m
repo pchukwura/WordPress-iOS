@@ -5,6 +5,7 @@
 //  Created by Chris Boyd on 7/19/10.
 //
 
+#import <QuartzCore/QuartzCore.h>
 #import "AddUsersBlogsViewController.h"
 #import "SFHFKeychainUtils.h"
 #import "NSString+XMLExtensions.h"
@@ -21,6 +22,7 @@
 - (void)showNoBlogsView;
 - (void)hideNoBlogsView;
 - (void)wpcomSignupNotificationReceived:(NSNotification *)notification;
+- (void)maskImageView:(UIImageView *)imageView corner:(UIRectCorner)corner;
 
 @end
 
@@ -94,7 +96,11 @@
 
 - (void)viewWillAppear:(BOOL)animated {
 	[super viewWillAppear:animated];
-	
+
+	if (usersBlogs.count == 0) {
+		buttonSelectAll.enabled = FALSE;
+	}
+
 	if((isWPcom) && (!appDelegate.isWPcomAuthenticated)) {
         WPcomLoginViewController *wpComLogin = [[WPcomLoginViewController alloc] initWithStyle:UITableViewStyleGrouped];
         [self.navigationController presentModalViewController:wpComLogin animated:YES];
@@ -245,6 +251,15 @@
             }
             NSURL *blogURL = [NSURL URLWithString:[blog valueForKey:@"url"]];
             [cell.imageView setImageWithBlavatarUrl:[blogURL host] isWPcom:isWPcom];
+            
+            if (indexPath.row == 0) {
+                [self maskImageView:cell.imageView corner:UIRectCornerTopLeft];
+            } else if (indexPath.row == ([self.tableView numberOfRowsInSection:indexPath.section] -1)) {
+                [self maskImageView:cell.imageView corner:UIRectCornerBottomLeft];
+            } else {
+                cell.imageView.layer.mask = NULL;
+            }
+            
 			break;
         }
         case 1:
@@ -305,6 +320,16 @@
 
 #pragma mark -
 #pragma mark Custom methods
+
+- (void)maskImageView:(UIImageView *)imageView corner:(UIRectCorner)corner {
+    CGRect frame = CGRectMake(0.0, 0.0, 43.0, 43.0);
+    UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:frame
+                                               byRoundingCorners:corner cornerRadii:CGSizeMake(7.0f, 7.0f)];
+    CAShapeLayer *maskLayer = [CAShapeLayer layer];
+    maskLayer.frame = frame;
+    maskLayer.path = path.CGPath;
+    imageView.layer.mask = maskLayer;
+}
 
 - (NSArray *)usersBlogs {
     return [usersBlogs filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
@@ -369,8 +394,7 @@
                 usersBlogs = responseObject;
                 hasCompletedGetUsersBlogs = YES;
                 if(usersBlogs.count > 0) {
-                    // TODO: Store blog list in Core Data
-                    //[[NSUserDefaults standardUserDefaults] setObject:usersBlogs forKey:@"WPcomUsersBlogs"];
+                    buttonSelectAll.enabled = TRUE;
                     [usersBlogs enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
                         NSString *title = [obj valueForKey:@"blogName"];
                         title = [title stringByDecodingXMLCharacters];

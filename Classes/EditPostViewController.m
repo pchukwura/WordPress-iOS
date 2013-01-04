@@ -7,15 +7,24 @@
 
 NSTimeInterval kAnimationDuration = 0.3f;
 
+typedef NS_ENUM(NSInteger, EditPostViewControllerAlertTag) {
+    EditPostViewControllerAlertTagNone,
+    EditPostViewControllerAlertTagLinkHelper,
+    EditPostViewControllerAlertTagFailedMedia,
+};
+
 @interface EditPostViewController (Private)
-- (BOOL) isMediaInUploading;
-- (void) showMediaInUploadingalert;
+- (BOOL)isMediaInUploading;
+- (void)showMediaInUploadingalert;
 - (void)restoreText:(NSString *)text withRange:(NSRange)range;
 - (void)populateSelectionsControllerWithCategories;
 - (BOOL)shouldEnableMediaTab;
 @end
 
-@implementation EditPostViewController
+@implementation EditPostViewController {
+    UIAlertView *_failedMediaAlertView;
+    UIAlertView *_linkHelperAlertView;
+}
 
 @synthesize selectionTableViewController, segmentedTableViewController;
 @synthesize infoText, urlField, bookMarksArray, selectedLinkRange, currentEditingTextField, isEditing, initialLocation;
@@ -35,6 +44,11 @@ NSTimeInterval kAnimationDuration = 0.3f;
 
 #pragma mark -
 #pragma mark LifeCycle Methods
+
+- (void)dealloc {
+    _failedMediaAlertView.delegate = nil;
+    _linkHelperAlertView.delegate = nil;
+}
 
 - (id)initWithPost:(AbstractPost *)aPost {
     NSString *nib;
@@ -144,10 +158,7 @@ NSTimeInterval kAnimationDuration = 0.3f;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(newCategoryCreatedNotificationReceived:) name:WPNewCategoryCreatedAndUpdatedInBlogNotificationName object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(insertMediaAbove:) name:@"ShouldInsertMediaAbove" object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(insertMediaBelow:) name:@"ShouldInsertMediaBelow" object:nil];
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(removeMedia:) name:@"ShouldRemoveMedia" object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dismissAlertViewKeyboard:) name:@"DismissAlertViewKeyboard" object:nil];
-  /*  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(featuredImageUploadFailed:) name:FeaturedImageUploadFailed object:nil];*/
-	
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(removeMedia:) name:@"ShouldRemoveMedia" object:nil];	
 	
     isTextViewEditing = NO;
     spinner = [[WPProgressHUD alloc] initWithLabel:NSLocalizedString(@"Saving...", @"Status message to indicate that content is saving (use an ellipsis (...) towards the end)")];
@@ -178,8 +189,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
         [self refreshUIForCurrentPost];
     } else if(self.editMode == kNewPost) {
         [self refreshUIForCompose];
-        
-//	} else if (self.editMode == kAutorecoverPost) {
     } else {
         [self refreshUIForCurrentPost];
 	}
@@ -192,19 +201,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
         attachmentButton.tintColor = color;
         photoButton.tintColor = color;
         movieButton.tintColor = color;
-    }
-    
-    // TODO: remove this when sunset support for iOS 4 and either
-    // fix the positioning in the xibs or use a different image for the pointer.
-    // This moves the pointer up 1 pixel to fix its appearance on iOS 5, while preserving
-    // its appearance on iOS 4.
-    if ([[UIToolbar class] respondsToSelector:@selector(appearance)]) {
-        CGRect frame = tabPointer.frame;
-        frame.origin.y = frame.origin.y - 1;
-        tabPointer.frame = frame;
-    } else {
-        //set the black tab pointer on iOS 4
-        [tabPointer setImage:[UIImage imageNamed:@"tabPointer_black"]];
     }
 }
 
@@ -240,7 +236,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
     animateWiggleIt.toValue=[NSNumber numberWithFloat:1.0];
 	[textViewPlaceHolderField.layer addAnimation:animateWiggleIt forKey:@"textViewPlaceHolderField"];
 
-//	self.title = NSLocalizedString(@"New Post", @"Post Editor screen title.");
 }
 
 - (void)viewWillDisappear:(BOOL)animated {	
@@ -507,7 +502,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 }
 
 - (void)refreshUIForCompose {
-//	self.navigationItem.title = NSLocalizedString(@"New Post", @"Post Editor screen title.");
     self.navigationItem.title = [self editorTitle];
     titleTextField.text = @"";
     textView.text = @"";
@@ -517,7 +511,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 
 - (void)refreshUIForCurrentPost {
     if ([self.apost.postTitle length] > 0) {
-//        self.navigationItem.title = self.apost.postTitle;
         self.navigationItem.title = [self editorTitle];
     }
     self.navigationItem.backBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:NSLocalizedString(@"Back", @"Back button label.")
@@ -525,7 +518,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	
     titleTextField.text = self.apost.postTitle;
     if (self.post) {
-        // FIXME: tags should be an array/set of Tag objects
         tagsTextField.text = self.post.tags;
         [categoriesButton setTitle:[NSString decodeXMLCharactersIn:[self.post categoriesText]] forState:UIControlStateNormal];
         [categoriesButton.titleLabel setFont:[UIFont systemFontOfSize:16.0f]];
@@ -719,6 +711,10 @@ NSTimeInterval kAnimationDuration = 0.3f;
 		[self showMediaInUploadingalert];
 		return;
 	}
+    if ([self hasFailedMedia]) {
+        [self showFailedMediaAlert];
+        return;
+    }
 	[self savePost:YES];
 }
 
@@ -751,9 +747,23 @@ NSTimeInterval kAnimationDuration = 0.3f;
     [self dismissEditView];
 }
 
+- (BOOL)hasFailedMedia {
+	BOOL hasFailedMedia = NO;
+
+	NSSet *mediaFiles = self.apost.media;
+	for (Media *media in mediaFiles) {
+		if(media.remoteStatus == MediaRemoteStatusFailed) {
+			hasFailedMedia = YES;
+			break;
+		}
+	}
+	mediaFiles = nil;
+
+	return hasFailedMedia;
+}
+
 //check if there are media in uploading status
--(BOOL) isMediaInUploading {
-	
+- (BOOL)isMediaInUploading {
 	BOOL isMediaInUploading = NO;
 	
 	NSSet *mediaFiles = self.apost.media;
@@ -768,7 +778,19 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	return isMediaInUploading;
 }
 
--(void) showMediaInUploadingalert {
+- (void)showFailedMediaAlert {
+    if (_failedMediaAlertView)
+        return;
+    _failedMediaAlertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Pending media", @"Title for alert when trying to publish a post with failed media items")
+                                                       message:NSLocalizedString(@"There are media items in this post that aren't uploaded to the server. Do you want to continue?", @"")
+                                                      delegate:self
+                                             cancelButtonTitle:NSLocalizedString(@"No", @"")
+                                             otherButtonTitles:NSLocalizedString(@"Post anyway", @""), nil];
+    _failedMediaAlertView.tag = EditPostViewControllerAlertTagFailedMedia;
+    [_failedMediaAlertView show];
+}
+
+- (void)showMediaInUploadingalert {
 	//the post is using the network connection and cannot be stoped, show a message to the user
 	UIAlertView *blogIsCurrentlyBusy = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Info", @"Info alert title")
 																  message:NSLocalizedString(@"A Media file is currently uploading. Please try later.", @"")
@@ -837,16 +859,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	}
 }
 
-/*
-- (IBAction)showCategoriesViewAction:(id)sender {
-	//[self showEditPostModalViewWithAnimation:YES];
-    [self populateSelectionsControllerWithCategories];
-}
-
-- (IBAction)showStatusViewAction:(id)sender {
-    [self populateSelectionsControllerWithStatuses];
-}
-*/
 - (void)resignTextView {
 	[textView resignFirstResponder];
 }
@@ -867,7 +879,10 @@ NSTimeInterval kAnimationDuration = 0.3f;
 }
 
 - (void)showLinkView {
-    UIAlertView *addURLSourceAlert = [[UIAlertView alloc] init];
+    if (_linkHelperAlertView)
+        return;
+
+    _linkHelperAlertView = [[UIAlertView alloc] init];
 	if (IS_IPAD || [[UIDevice currentDevice] orientation] == UIInterfaceOrientationPortrait) {
 		infoText = [[UITextField alloc] initWithFrame:CGRectMake(12.0, 46.0, 260.0, 31.0)];
 		urlField = [[UITextField alloc] initWithFrame:CGRectMake(12.0, 82.0, 260.0, 31.0)];
@@ -887,8 +902,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
     if (range.length > 0)
         infoText.text = [textView.text substringWithRange:range];
     
-    //infoText.enabled = YES;
-	
     infoText.autocapitalizationType = UITextAutocapitalizationTypeNone;
     urlField.autocapitalizationType = UITextAutocapitalizationTypeNone;
     infoText.borderStyle = UITextBorderStyleRoundedRect;
@@ -897,17 +910,17 @@ NSTimeInterval kAnimationDuration = 0.3f;
     urlField.keyboardAppearance = UIKeyboardAppearanceAlert;
 	infoText.keyboardType = UIKeyboardTypeDefault;
 	urlField.keyboardType = UIKeyboardTypeURL;
-    [addURLSourceAlert addButtonWithTitle:NSLocalizedString(@"Cancel", @"Cancel button")];
-    [addURLSourceAlert addButtonWithTitle:NSLocalizedString(@"Insert", @"Insert content (link, media) button")];
-    addURLSourceAlert.title = NSLocalizedString(@"Make a Link\n\n\n\n", @"Title of the Link Helper popup to aid in creating a Link in the Post Editor. DON'T REMOVE the line breaks!");
-    addURLSourceAlert.delegate = self;
-    [addURLSourceAlert addSubview:infoText];
-    [addURLSourceAlert addSubview:urlField];
+    [_linkHelperAlertView addButtonWithTitle:NSLocalizedString(@"Cancel", @"Cancel button")];
+    [_linkHelperAlertView addButtonWithTitle:NSLocalizedString(@"Insert", @"Insert content (link, media) button")];
+    _linkHelperAlertView.title = NSLocalizedString(@"Make a Link\n\n\n\n", @"Title of the Link Helper popup to aid in creating a Link in the Post Editor. DON'T REMOVE the line breaks!");
+    _linkHelperAlertView.delegate = self;
+    [_linkHelperAlertView addSubview:infoText];
+    [_linkHelperAlertView addSubview:urlField];
     [infoText becomeFirstResponder];
 	
     isShowingLinkAlert = YES;
-    [addURLSourceAlert setTag:2];
-    [addURLSourceAlert show];
+    _linkHelperAlertView.tag = EditPostViewControllerAlertTagLinkHelper;
+    [_linkHelperAlertView show];
 }
 
 - (BOOL)hasChanges {
@@ -920,7 +933,7 @@ NSTimeInterval kAnimationDuration = 0.3f;
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
     WordPressAppDelegate *delegate = (WordPressAppDelegate*)[[UIApplication sharedApplication] delegate];
 	
-    if ([alertView tag] == 2) {
+    if (alertView.tag == EditPostViewControllerAlertTagLinkHelper) {
         isShowingLinkAlert = NO;
         if (buttonIndex == 1) {
             if ((urlField.text == nil) || ([urlField.text isEqualToString:@""])) {
@@ -931,22 +944,14 @@ NSTimeInterval kAnimationDuration = 0.3f;
             if ((infoText.text == nil) || ([infoText.text isEqualToString:@""]))
                 infoText.text = urlField.text;
 			
-            //NSString *commentsStr = textView.text;
-            //NSRange rangeToReplace = [self selectedLinkRange];
             NSString *urlString = [self validateNewLinkInfo:urlField.text];
             NSString *aTagText = [NSString stringWithFormat:@"<a href=\"%@\">%@</a>", urlString, infoText.text];
             
             NSRange range = textView.selectedRange;
             
-            //NSString *selection = [textView.text substringWithRange:range];
             NSString *oldText = textView.text;
             NSRange oldRange = textView.selectedRange;
-            // Weird. On iOS 4.2.x iPad the selectedRange can be larger than the string's length? #1011-ios 
-            if (range.location > [oldText length]) {
-                textView.text = [textView.text stringByAppendingString:aTagText];
-            } else {
-                textView.text = [textView.text stringByReplacingCharactersInRange:range withString:aTagText];
-            }
+            textView.text = [textView.text stringByReplacingCharactersInRange:range withString:aTagText];
             
             //reset selection back to nothing
             range.length = 0;
@@ -958,13 +963,19 @@ NSTimeInterval kAnimationDuration = 0.3f;
             [[textView.undoManager prepareWithInvocationTarget:self] restoreText:oldText withRange:oldRange];
             [textView.undoManager setActionName:@"link"];            
             
-            //textView.text = [commentsStr stringByReplacingOccurrencesOfString:[commentsStr substringWithRange:rangeToReplace] withString:aTagText options:NSCaseInsensitiveSearch range:rangeToReplace];
 			self.apost.content = textView.text;
         }
 		
-        dismiss = NO;
         [delegate setAlertRunning:NO];
         [textView touchesBegan:nil withEvent:nil];
+        _linkHelperAlertView = nil;
+    } else if (alertView.tag == EditPostViewControllerAlertTagFailedMedia) {
+        if (buttonIndex == 1) {
+            [self savePost:YES];
+        } else {
+            [self switchToMedia];
+        }
+        _failedMediaAlertView = nil;
     }
 	
     return;
@@ -1022,9 +1033,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
     WPFLogMethod();
     [textViewPlaceHolderField removeFromSuperview];
 
-//	[self positionTextView:nil];
-    dismiss = NO;
-	
     if (!isTextViewEditing) {
         isTextViewEditing = YES;
     }
@@ -1032,19 +1040,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 
 - (void)textViewDidChange:(UITextView *)aTextView {
     
-    //replace character entities with character numbers for trac #871
-    
-    NSString *str = aTextView.text;
-    
-    if ([str rangeOfString:@"&nbsp"].location != NSNotFound || [str rangeOfString:@"&gt"].location != NSNotFound || [str rangeOfString:@"&lt"].location != NSNotFound) {
-    
-        str = [[aTextView text] stringByReplacingOccurrencesOfString: @"&nbsp" withString: @" "];
-        str = [str stringByReplacingOccurrencesOfString: @"&lt" withString: @"<"];
-        str = [str stringByReplacingOccurrencesOfString: @"&gt" withString: @">"];
-    
-        aTextView.text = str;
-    }
-        
     self.undoButton.enabled = [self.textView.undoManager canUndo];
     self.redoButton.enabled = [self.textView.undoManager canRedo];
     
@@ -1062,11 +1057,9 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	}
 	
     isEditing = NO;
-    dismiss = NO;
 	
     if (isTextViewEditing) {
         isTextViewEditing = NO;
-//		[self positionTextView:nil];
 		
         self.apost.content = textView.text;
 		
@@ -1107,15 +1100,7 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	
     if (textField == titleTextField) {
         self.apost.postTitle = textField.text;
-        
-        // FIXME: this should be -[PostsViewController updateTitle]
         self.navigationItem.title = [self editorTitle];
-//        if ([self.apost.postTitle length] > 0) {
-//            self.navigationItem.title = self.apost.postTitle;
-//        } else {
-//            self.navigationItem.title = NSLocalizedString(@"New Post", @"Post Editor screen title.");
-//        }
-
     }
 	else if (textField == tagsTextField)
         self.post.tags = tagsTextField.text;
@@ -1252,8 +1237,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string {
     if (textField == titleTextField) {
         self.apost.postTitle = [textField.text stringByReplacingCharactersInRange:range withString:string];
-
-        // FIXME: this should be -[PostsViewController updateTitle]
         self.navigationItem.title = [self editorTitle];
 
     } else if (textField == tagsTextField)
@@ -1346,27 +1329,7 @@ NSTimeInterval kAnimationDuration = 0.3f;
 	textView.text = [textView.text stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"%@<br /><br />", media.html] withString:@""];
 	textView.text = [textView.text stringByReplacingOccurrencesOfString:media.html withString:@""];
 	self.apost.content = textView.text;
-}
-
-- (void)readBookmarksFile {
-    bookMarksArray = [[NSMutableArray alloc] init];
-    //NSDictionary *bookMarksDict=[NSMutableDictionary dictionaryWithContentsOfFile:@"/Users/sridharrao/Library/Safari/Bookmarks.plist"];
-    NSDictionary *bookMarksDict = [NSMutableDictionary dictionaryWithContentsOfFile:@"/Users/sridharrao/Library/Application%20Support/iPhone%20Simulator/User/Library/Safari/Bookmarks.plist"];
-    NSArray *childrenArray = [bookMarksDict valueForKey:@"Children"];
-    bookMarksDict = [childrenArray objectAtIndex:0];
-    int count = [childrenArray count];
-    childrenArray = [bookMarksDict valueForKey:@"Children"];
-	
-    for (int i = 0; i < count; i++) {
-        bookMarksDict = [childrenArray objectAtIndex:i];
-		
-        if ([[bookMarksDict valueForKey:@"WebBookmarkType"] isEqualToString:@"WebBookmarkTypeLeaf"]) {
-            NSMutableDictionary *dict = [[NSMutableDictionary alloc] init];
-            [dict setValue:[[bookMarksDict valueForKey:@"URIDictionary"] valueForKey:@"title"] forKey:@"title"];
-            [dict setValue:[bookMarksDict valueForKey:@"URLString"] forKey:@"url"];
-            [bookMarksArray addObject:dict];
-        }
-    }
+    [self refreshUIForCurrentPost];
 }
 
 #pragma mark - Keyboard toolbar
@@ -1459,30 +1422,16 @@ NSTimeInterval kAnimationDuration = 0.3f;
 		
         UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 200, 25)];
         label.textAlignment = UITextAlignmentLeft;
-        //label.tag = kLabelTag;
         label.font = [UIFont systemFontOfSize:16];
         label.textColor = [UIColor grayColor];
         [cell.contentView addSubview:label];
     }
 	
-    NSUInteger row = [indexPath row];
-	
-    //UILabel *label = (UILabel *)[cell viewWithTag:kLabelTag];
-	
-    if (row == 0) {
-        //label.text = @"Edit Custom Fields";
-        //label.font = [UIFont systemFontOfSize:16 ];
-    } else {
-        //do nothing because we've only got one cell right now
-    }
 	cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
     cell.userInteractionEnabled = YES;
     return cell;
 }
 
-//- (UITableViewCellAccessoryType)tableView:(UITableView *)tableView accessoryTypeForRowWithIndexPath:(NSIndexPath *)indexPath {
-//    return UITableViewCellAccessoryDisclosureIndicator;
-//}
 
 #pragma mark -
 #pragma mark Table delegate
@@ -1491,90 +1440,6 @@ NSTimeInterval kAnimationDuration = 0.3f;
     return nil;
 }
 
-#pragma mark -
-#pragma mark Custom Fields methods
-/*
-- (BOOL)checkCustomFieldsMinusMetadata {
-    BlogDataManager *dm = [BlogDataManager sharedDataManager];
-    NSMutableArray *tempCustomFieldsArray = [dm.currentPost valueForKey:@"custom_fields"];
-	
-    //if there is anything (>=1) in the array, start proceessing, otherwise return NO
-    if (tempCustomFieldsArray.count >= 1) {
-        //strip out any underscore-containing NSDicts inside the array, as this is metadata we don't need
-        int dictsCount = [tempCustomFieldsArray count];
-		
-        for (int i = 0; i < dictsCount; i++) {
-            NSString *tempKey = [[tempCustomFieldsArray objectAtIndex:i] objectForKey:@"key"];
-			
-            //if tempKey contains an underscore, remove that object (NSDict with metadata) from the array and move on
-            if(([tempKey rangeOfString:@"_"].location != NSNotFound) && ([tempKey rangeOfString:@"geo_"].location == NSNotFound)) {
-                [tempCustomFieldsArray removeObjectAtIndex:i];
-                //if I remove one, the count goes down and we stop too soon unless we subtract one from i
-                //and re-set dictsCount.  Doing this keeps us in sync with the actual array.count
-                i--;
-                dictsCount = [tempCustomFieldsArray count];
-            }
-        }
-		
-        //if the count of everything minus the metedata is one or greater, there is at least one custom field on this post, so return YES
-        if (dictsCount >= 1) {
-            return YES;
-        } else {
-            return NO;
-        }
-    } else {
-        return NO;
-    }
-}
-
-#pragma mark -
-#pragma mark Location methods
-
-- (BOOL)isPostGeotagged {
-	if([self getPostLocation] != nil) {
-		return YES;
-	}
-	else
-		return NO;
-}
-
-- (IBAction)showLocationMapView:(id)sender {
-	WordPressAppDelegate *delegate = (WordPressAppDelegate *)[[UIApplication sharedApplication] delegate];
-	PostLocationViewController *locationView = [[PostLocationViewController alloc] initWithNibName:@"PostLocationViewController" bundle:nil];
-	[delegate.navigationController presentModalViewController:locationView animated:YES];
-	[locationView release];
-}
-
-- (CLLocation *)getPostLocation {
-	CLLocation *result = nil;
-	double latitude = 0.0;
-	double longitude = 0.0;
-    NSArray *customFieldsArray = [[[BlogDataManager sharedDataManager] currentPost] valueForKey:@"custom_fields"];
-	
-	// Loop through the post's custom fields
-	for(NSDictionary *dict in customFieldsArray)
-	{
-		// Latitude
-		if([[dict objectForKey:@"key"] isEqualToString:@"geo_latitude"])
-			latitude = [[dict objectForKey:@"value"] doubleValue];
-		
-		// Longitude
-		if([[dict objectForKey:@"key"] isEqualToString:@"geo_longitude"])
-			longitude = [[dict objectForKey:@"value"] doubleValue];
-		
-		// If we have both lat and long, we have a geotag
-		if((latitude != 0.0) && (longitude != 0.0))
-		{
-			result = [[[CLLocation alloc] initWithLatitude:latitude longitude:longitude] autorelease];
-			break;
-		}
-		else
-			result = nil;
-	}
-	
-	return result;
-}
-*/
 
 #pragma mark -
 #pragma mark Keyboard management 
@@ -1634,14 +1499,5 @@ NSTimeInterval kAnimationDuration = 0.3f;
     WPLog(@"%@ %@", self, NSStringFromSelector(_cmd));
     [super didReceiveMemoryWarning];
 }
-
-- (void)dismissAlertViewKeyboard: (NSNotification*)notification {
-    if (isShowingLinkAlert) {
-        [infoText resignFirstResponder];
-        [urlField resignFirstResponder];
-    }
-}
-
-
 
 @end

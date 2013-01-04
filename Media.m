@@ -110,9 +110,11 @@
 }
 
 - (void)cancelUpload {
-    [_uploadOperation cancel];
-     _uploadOperation = nil;
-    self.remoteStatus = MediaRemoteStatusFailed;
+    if (self.remoteStatus == MediaRemoteStatusPushing || self.remoteStatus == MediaRemoteStatusProcessing) {
+        [_uploadOperation cancel];
+        _uploadOperation = nil;
+        self.remoteStatus = MediaRemoteStatusFailed;
+    }
 }
 
 - (void)uploadWithSuccess:(void (^)())success failure:(void (^)(NSError *error))failure {
@@ -186,12 +188,18 @@
             }];
             [operation setUploadProgressBlock:^(NSUInteger bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite) {
                 dispatch_async(dispatch_get_main_queue(), ^(void) {
+                    if ([self isDeleted] || self.managedObjectContext == nil)
+                        return;
                     self.progress = (float)totalBytesWritten / (float)totalBytesExpectedToWrite;
                 });
             }];
             _uploadOperation = operation;
-            self.remoteStatus = MediaRemoteStatusPushing;
-            [self.blog.api enqueueHTTPRequestOperation:operation];
+
+            // Upload might have been canceled while processing
+            if (self.remoteStatus == MediaRemoteStatusProcessing) {
+                self.remoteStatus = MediaRemoteStatusPushing;
+                [self.blog.api enqueueHTTPRequestOperation:operation];
+            }
         });
     });
 }

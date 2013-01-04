@@ -2,6 +2,8 @@
 #import "WPSelectionTableViewController.h"
 #import "WordPressAppDelegate.h"
 #import "WPPopoverBackgroundView.h"
+#import "SFHFKeychainUtils.h"
+#import "NSString+Helpers.h"
 
 #define kPasswordFooterSectionHeight         68.0f
 #define kResizePhotoSettingSectionHeight     60.0f
@@ -10,10 +12,14 @@
 #define TAG_PICKER_DATE         2
 #define TAG_PICKER_FORMAT       3
 
-@interface PostSettingsViewController (Private)
+@interface PostSettingsViewController () {
+    BOOL triedAuthOnce;
+}
 
 - (void)showPicker:(UIView *)picker;
 - (void)geocodeCoordinate:(CLLocationCoordinate2D)c;
+- (void)geolocationCellTapped:(NSIndexPath *)indexPath;
+- (void)loadFeaturedImage:(NSURL *)imageURL;
 
 @end
 
@@ -84,10 +90,9 @@
 		locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters;
 		locationManager.distanceFilter = 10;
 		
-		// FIXME: only add tag if it's a new post. If user removes tag we shouldn't try to add it again
+		// Only add tag if it's a new post. If user removes tag we shouldn't try to add it again
 		if (postDetailViewController.post.geolocation == nil // Only if there is no geotag
-//			&& ![postDetailViewController.post hasRemote]    // and post is new (don't follow this way, instead tale look the line below)
-			&& [postDetailViewController isAFreshlyCreatedDraft] //just a fresh draft. the line above doesn't take in consideration the case of a local draft without location
+			&& [postDetailViewController isAFreshlyCreatedDraft] // and just a fresh draft.
 			&& [CLLocationManager locationServicesEnabled]
 			&& postDetailViewController.post.blog.geolocationEnabled) {
 			isUpdatingLocation = YES;
@@ -119,11 +124,7 @@
                     NSURL *imageURL = [[NSURL alloc] initWithString:postDetailViewController.post.featuredImageURL];
                     if (imageURL) {
                         [featuredImageTableViewCell setSelectionStyle:UITableViewCellSelectionStyleNone];
-                        [featuredImageView setImageWithURL:imageURL];
-                        [featuredImageView setHidden:NO];
-                        [featuredImageSpinner stopAnimating];
-                        [featuredImageSpinner setHidden:YES];
-                        [featuredImageLabel setHidden:YES];
+                        [self loadFeaturedImage:imageURL];
                     }
                 }
             } failure:^(NSError *error) {
@@ -189,6 +190,67 @@
 #pragma mark -
 #pragma mark Instance Methods
 
+- (void)loadFeaturedImage:(NSURL *)imageURL {
+    
+    NSURLRequest *req = [NSURLRequest requestWithURL:imageURL];
+    AFImageRequestOperation *operation = [[AFImageRequestOperation alloc] initWithRequest:req];
+    [operation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [featuredImageView setImage:responseObject];
+        [featuredImageView setHidden:NO];
+        [featuredImageSpinner stopAnimating];
+        [featuredImageSpinner setHidden:YES];
+        [featuredImageLabel setHidden:YES];
+        
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        // private blog, auth needed.
+        if (operation.response.statusCode == 403) {
+            
+            if (!triedAuthOnce) {
+                triedAuthOnce = YES;
+                
+                NSError *error = nil;
+                Blog *blog = self.postDetailViewController.apost.blog;
+                NSString *username = blog.username;
+                NSString *password = [SFHFKeychainUtils getPasswordForUsername:blog.username andServiceName:blog.hostURL error:&error];
+                
+                NSMutableURLRequest *mRequest = [[NSMutableURLRequest alloc] init];
+                NSString *requestBody = [NSString stringWithFormat:@"log=%@&pwd=%@&redirect_to=",
+                                         [username stringByUrlEncoding],
+                                         [password stringByUrlEncoding]];
+                
+                [mRequest setURL:[NSURL URLWithString:blog.loginURL]];
+                [mRequest setHTTPBody:[requestBody dataUsingEncoding:NSUTF8StringEncoding]];
+                [mRequest setValue:[NSString stringWithFormat:@"%d", [requestBody length]] forHTTPHeaderField:@"Content-Length"];
+                [mRequest addValue:@"*/*" forHTTPHeaderField:@"Accept"];
+                [mRequest setHTTPMethod:@"POST"];
+                
+                AFHTTPRequestOperation *authOp = [[AFHTTPRequestOperation alloc] initWithRequest:mRequest];
+                [authOp setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+                    // Good auth. We should be able to show the image now.
+                    [self loadFeaturedImage:imageURL];
+                    
+                } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+                    // Rather than duplicate the fail condition, just call the method again and let it fail a second time.
+                    [self loadFeaturedImage:imageURL];
+                    
+                }];
+                [authOp start];
+                
+                return;
+            }    
+        }
+        
+        // Unable to download the image.
+        [featuredImageView setHidden:YES];
+        [featuredImageSpinner stopAnimating];
+        [featuredImageSpinner setHidden:YES];
+        [featuredImageLabel setText:NSLocalizedString(@"Could not download Featured Image.", @"Featured image could not be downloaded for display in post settings.")];
+    }];
+    
+    [operation start];
+}
+
+
 - (void)endEditingAction:(id)sender {
 	if (passwordTextField != nil){
         [passwordTextField resignFirstResponder];
@@ -233,7 +295,7 @@
         sections += 1; // Post formats
         if (blogSupportsFeaturedImage)
             sections += 1;
-        if (postDetailViewController.post.blog.geolocationEnabled) {
+        if (postDetailViewController.post.blog.geolocationEnabled || postDetailViewController.post.geolocation) {
             sections += 1; // Geolocation
         }
 	}
@@ -417,27 +479,49 @@
     switch (indexPath.row) {
         case 0: // Add/update location
         {
-            if (addGeotagTableViewCell == nil) {
-                NSArray *topLevelObjects = [[NSBundle mainBundle] loadNibNamed:@"UITableViewActivityCell" owner:nil options:nil];
-                for(id currentObject in topLevelObjects) {
-                    if([currentObject isKindOfClass:[UITableViewActivityCell class]]) {
-                        addGeotagTableViewCell = (UITableViewActivityCell *)currentObject;
-                        break;
+            // If location services are disabled at the app level [CLLocationManager locationServicesEnabled] will be true, but the location will be nil.
+            if(!postDetailViewController.post.blog.geolocationEnabled) {
+                UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"GeolocationDisabledCell"];
+                if (!cell) {
+                    cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"GeolocationDisabledCell"];
+                    cell.textLabel.text = NSLocalizedString(@"Enable Geotagging to Edit", @"Prompt the user to enable geolocation tagging on their blog.");
+                    cell.textLabel.textAlignment = UITextAlignmentCenter;
+                }
+                return cell;
+                
+            } else if(![CLLocationManager locationServicesEnabled] || [locationManager location] == nil) {
+                UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"locationServicesCell"];
+                if (!cell) {
+                    cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"locationServicesCell"];
+                    cell.textLabel.text = NSLocalizedString(@"Please Enable Location Services", @"Prompt the user to enable location services on their device.");
+                    cell.textLabel.textAlignment = UITextAlignmentCenter;
+                }
+                return cell;
+                
+            } else {
+            
+                if (addGeotagTableViewCell == nil) {
+                    NSArray *topLevelObjects = [[NSBundle mainBundle] loadNibNamed:@"UITableViewActivityCell" owner:nil options:nil];
+                    for(id currentObject in topLevelObjects) {
+                        if([currentObject isKindOfClass:[UITableViewActivityCell class]]) {
+                            addGeotagTableViewCell = (UITableViewActivityCell *)currentObject;
+                            break;
+                        }
                     }
                 }
-            }
-            if (isUpdatingLocation) {
-                addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Finding your location...", @"Geo-tagging posts, status message when geolocation is found.");
-                [addGeotagTableViewCell.spinner startAnimating];
-            } else {
-                [addGeotagTableViewCell.spinner stopAnimating];
-                if (postDetailViewController.post.geolocation) {
-                    addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Update Location", @"Gelocation feature to update physical location.");
+                if (isUpdatingLocation) {
+                    addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Finding your location...", @"Geo-tagging posts, status message when geolocation is found.");
+                    [addGeotagTableViewCell.spinner startAnimating];
                 } else {
-                    addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Add Location", @"Geolocation feature to add location.");
+                    [addGeotagTableViewCell.spinner stopAnimating];
+                    if (postDetailViewController.post.geolocation) {
+                        addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Update Location", @"Gelocation feature to update physical location.");
+                    } else {
+                        addGeotagTableViewCell.textLabel.text = NSLocalizedString(@"Add Location", @"Geolocation feature to add location.");
+                    }
                 }
+                return addGeotagTableViewCell;
             }
-            return addGeotagTableViewCell;
             break;
         }
         case 1:
@@ -580,56 +664,63 @@
                         break;
                     case 1:
                         actionSheet = [[UIActionSheet alloc] initWithTitle:NSLocalizedString(@"Remove this Featured Image?", @"Prompt when removing a featured image from a post") delegate:self cancelButtonTitle:NSLocalizedString(@"Cancel", "Cancel a prompt") destructiveButtonTitle:NSLocalizedString(@"Remove", @"Remove an image/posts/etc") otherButtonTitles:nil];
-                        [actionSheet showFromRect:cell.frame inView:self.view animated:YES];
+                        [actionSheet showFromRect:cell.frame inView:postDetailViewController.view animated:YES];
                         break;
                 }
             } else {
-                switch (indexPath.row) {
-                    case 0:
-                        if (!isUpdatingLocation) {
-                            // Add or replace geotag
-                            isUpdatingLocation = YES;
-                            [locationManager startUpdatingLocation];
-                        }
-                        break;
-                    case 2:
-                        if (isUpdatingLocation) {
-                            // Cancel update
-                            isUpdatingLocation = NO;
-                            [locationManager stopUpdatingLocation];
-                        }
-                        postDetailViewController.post.geolocation = nil;
-                        postDetailViewController.hasLocation.enabled = NO;
-                        [postDetailViewController refreshButtons];
-                        break;
-                }
-                [tableView reloadData];
+                [self geolocationCellTapped:indexPath];
             }
             break;
           case 3:
-            switch (indexPath.row) {
-                case 0:
-                    if (!isUpdatingLocation) {
-                        // Add or replace geotag
-                        isUpdatingLocation = YES;
-                        [locationManager startUpdatingLocation];
-                    }
-                    break;
-                case 2:
-                    if (isUpdatingLocation) {
-                        // Cancel update
-                        isUpdatingLocation = NO;
-                        [locationManager stopUpdatingLocation];
-                    }
-                    postDetailViewController.post.geolocation = nil;
-                    postDetailViewController.hasLocation.enabled = NO;
-                    [postDetailViewController refreshButtons];
-                    break;
-            }
-            [tableView reloadData];
+            [self geolocationCellTapped:indexPath];
             break;
 	}
     [aTableView deselectRowAtIndexPath:[tableView indexPathForSelectedRow] animated:YES];
+}
+
+- (void)geolocationCellTapped:(NSIndexPath *)indexPath {
+    switch (indexPath.row) {
+        case 0:
+            
+            if(!postDetailViewController.post.blog.geolocationEnabled) {
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Enable Geotagging", @"Title of an alert view stating the user needs to turn on geotagging.")
+                                                                    message:NSLocalizedString(@"Geotagging is turned off. \nTo update this post's location, please enable geotagging in this blog's settings.", @"Message of an alert explaining that geotagging need to be enabled.")
+                                                                   delegate:nil
+                                                          cancelButtonTitle:@"OK"
+                                                          otherButtonTitles:nil, nil];
+                [alertView show];
+                return;
+            }
+            
+            // If location services are disabled at the app level [CLLocationManager locationServicesEnabled] will be true, but the location will be nil.
+            if(![CLLocationManager locationServicesEnabled] || [locationManager location] == nil) {
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Location Unavailable", @"Title of an alert view stating that the user's location is unavailable.")
+                                                                    message:NSLocalizedString(@"Location Services are turned off. \nTo add or update this post's location, please enable Location Services in the Settings app.", @"Message of an alert explaining that location services need to be enabled.")
+                                                                   delegate:nil
+                                                          cancelButtonTitle:@"OK"
+                                                          otherButtonTitles:nil, nil];
+                [alertView show];
+                return;
+            }
+
+            if (!isUpdatingLocation) {
+                // Add or replace geotag
+                isUpdatingLocation = YES;
+                [locationManager startUpdatingLocation];
+            }
+            break;
+        case 2:
+            if (isUpdatingLocation) {
+                // Cancel update
+                isUpdatingLocation = NO;
+                [locationManager stopUpdatingLocation];
+            }
+            postDetailViewController.post.geolocation = nil;
+            postDetailViewController.hasLocation.enabled = NO;
+            [postDetailViewController refreshButtons];
+            break;
+    }
+    [tableView reloadData];
 }
 
 - (void)featuredImageUploadFailed: (NSNotification *)notificationInfo {
@@ -795,7 +886,7 @@
         CGFloat width = postDetailViewController.view.frame.size.width;
         CGFloat height = 0.0;
         
-        // TODO: Refactor this class to not use UIActionSheets for display.
+        // Refactor this class to not use UIActionSheets for display. See trac #1509.
         // <rant>Shoehorning a UIPicker inside a UIActionSheet is just madness.</rant>
         // For now, hardcoding height values for the iPhone so we don't get
         // a funky gap at the bottom of the screen on the iPhone 5.
@@ -860,7 +951,7 @@
             
             // The UISegmentControl does not show a pressed state for its button so (for now) use the same
             // state for normal and highlighted.
-            // TODO: It would be nice to refactor this to use a toolbar and buttons instead of a segmented control to get the 
+            // It would be nice to refactor this to use a toolbar and buttons instead of a segmented control to get the 
             // correct look and feel.
             [closeButton setTitleTextAttributes:titleTextAttributesForStateNormal forState:UIControlStateNormal];
             [closeButton setTitleTextAttributes:titleTextAttributesForStateNormal forState:UIControlStateHighlighted];

@@ -10,8 +10,6 @@
 
 @interface PostsViewController (Private)
 
-- (void)syncPostsWithBlogInfo:(BOOL)blogInfo;
-- (void)syncPosts;
 - (BOOL)handleAutoSavedContext:(NSInteger)tag;
 - (void)deletePostAtIndexPath:(NSIndexPath *)indexPath;
 - (void)editPost:(AbstractPost *)apost;
@@ -30,6 +28,15 @@
 #pragma mark -
 #pragma mark View lifecycle
 
+- (id)init {
+    self = [super init];
+    if(self) {
+        self.title = NSLocalizedString(@"Posts", @"");
+    }
+    return self;
+}
+
+
 - (void)viewDidLoad {
     [FileLogger log:@"%@ %@", self, NSStringFromSelector(_cmd)];
     [super viewDidLoad];
@@ -37,8 +44,6 @@
 	// ShouldRefreshPosts
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updatePostsTableViewAfterPostSaved:) name:@"AsynchronousPostIsPosted" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updatePostsTableAfterDraftSaved:) name:@"DraftsUpdated" object:nil];
-
-    self.title = NSLocalizedString(@"Posts", @"");
     
     UIBarButtonItem *composeButtonItem  = nil;
     
@@ -229,7 +234,7 @@
     [post deletePostWithSuccess:nil failure:^(NSError *error) {
         NSDictionary *errInfo = [NSDictionary dictionaryWithObjectsAndKeys:self.blog, @"currentBlog", nil];
         [[NSNotificationCenter defaultCenter] postNotificationName:kXML_RPC_ERROR_OCCURS object:error userInfo:errInfo];
-        [self syncPosts];
+        [self syncItemsWithUserInteraction:NO];
         if(IS_IPAD && self.postReaderViewController) {
             if(self.postReaderViewController.apost == post) {
                 //push an the W logo on the right. 

@@ -8,7 +8,6 @@
 
 #import "ReplyToCommentViewController.h"
 #import "WPProgressHUD.h"
-#import "CommentViewController.h"
 
 @interface ReplyToCommentViewController (Private)
 
@@ -25,10 +24,8 @@
 @implementation ReplyToCommentViewController
 
 @synthesize delegate, saveButton, doneButton, comment;
-@synthesize cancelButton, label, hasChanges, textViewText, isTransitioning, isEditing;
+@synthesize cancelButton, hasChanges, textViewText, isTransitioning, isEditing;
 
-
-//TODO: Make sure to give this class a connection to commentDetails and currentIndex from CommentViewController
 
 - (void)dealloc {
     [FileLogger log:@"%@ %@", self, NSStringFromSelector(_cmd)];
@@ -68,15 +65,6 @@
 	cancelButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancelView:)];
 	self.navigationItem.leftBarButtonItem = cancelButton;
 	cancelButton = nil;
-	
-	if ([self.comment.status isEqualToString:@"hold"]) {
-		label.backgroundColor = PENDING_COMMENT_TABLE_VIEW_CELL_BACKGROUND_COLOR;
-		label.hidden = NO;
-	} else {
-		label.hidden = YES;
-		//TODO: JOHNB - code movement of text view upward if this is not a pending comment
-		
-	}
 	
 	[textView becomeFirstResponder];
 
@@ -197,72 +185,6 @@
 		[self.navigationItem setLeftBarButtonItem:doneButton];
 	}
 	isEditing = YES;
-}
-
-
-//replace "&nbsp" with a space @"&#160;" before Apple's broken TextView handling can do so and break things
-//this enables the "http helper" to work as expected
-//important is capturing &nbsp BEFORE the semicolon is added.  Not doing so causes a crash in the textViewDidChange method due to array overrun
-- (BOOL)textView:(UITextView *)aTextView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text {
-	//if nothing has been entered yet, return YES to prevent crash when hitting delete
-	
-    if (text.length == 0) {
-		return YES;
-    }
-	
-    // create final version of textView after the current text has been inserted
-    NSMutableString *updatedText = [[NSMutableString alloc] initWithString:aTextView.text];
-    [updatedText insertString:text atIndex:range.location];
-	
-    NSRange replaceRange = range, endRange = range;
-	
-    if (text.length > 1) {
-        // handle paste
-        replaceRange.length = text.length;
-    } else {
-        // handle normal typing
-        replaceRange.length = 6;  // length of "&#160;" is 6 characters
-        if( replaceRange.location >= 5) //we should check the location. the new location must be > 0
-			replaceRange.location -= 5; // look back one characters (length of "&#160;" minus one)
-		else {
-			//the beginning of the field
-			replaceRange.location = 0; 
-			replaceRange.length = 5;
-		}
-	}
-	
-	int replaceCount = 0;
-	
-	@try{
-		// replace "&nbsp" with "&#160;" for the inserted range
-		if([updatedText length] > 4)
-			replaceCount = [updatedText replaceOccurrencesOfString:@"&nbsp" withString:@"&#160;" options:NSCaseInsensitiveSearch range:replaceRange];
-	}
-	@catch (NSException *e){
-		NSLog(@"NSRangeException: Can't replace text in range.");
-	}
-	@catch (id ue) { // least specific type. NSRangeException is a const defined in a string constant
-		NSLog(@"NSRangeException: Can't replace text in range.");
-	}
-	
-    if (replaceCount > 0) {
-        // update the textView's text
-        aTextView.text = updatedText;
-		
-        // leave cursor at end of inserted text
-        endRange.location += text.length + replaceCount * 1; // length diff of "&nbsp" and "&#160;" is 1 character
-        aTextView.selectedRange = endRange; 
-		
-		updatedText = nil;
-		
-        // let the textView know that it should ingore the inserted text
-        return NO;
-    }
-	
-	updatedText = nil;
-	
-    // let the textView know that it should handle the inserted text
-    return YES;
 }
 
 

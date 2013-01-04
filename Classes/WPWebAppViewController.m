@@ -9,8 +9,11 @@
 #import "WPWebAppViewController.h"
 #import "WordPressAppDelegate.h"
 #import "ReachabilityUtils.h"
+#import "SoundUtil.h"
 
-@implementation WPWebAppViewController
+@implementation WPWebAppViewController {
+    BOOL _pullToRefreshEnabled;
+}
 
 @synthesize webView, loading, lastWebViewRefreshDate, webBridge;
 
@@ -19,9 +22,13 @@
 - (void)dealloc {
     WPFLogMethod();
 
+    if(_pullToRefreshEnabled)
+        [self.scrollView removeObserver:self forKeyPath:@"contentOffset"];
+
     [self.webView stopLoading];
     self.webView.delegate = nil;
     self.webBridge.delegate = nil;
+    self.scrollView.delegate = nil;
 }
 
 
@@ -61,7 +68,12 @@
 - (void)viewDidUnload {
     WPFLogMethod();
     [super viewDidUnload];
-    
+
+    if (_pullToRefreshEnabled) {
+        [self.scrollView removeObserver:self forKeyPath:@"contentOffset"];
+        _pullToRefreshEnabled = NO;
+    }
+
     // attempted work around for #1347 to kill UIWebView loading requests
     if (self.webView.isLoading) {
         [self.webView stopLoading];
@@ -98,6 +110,29 @@
     
     return scrollView;
     
+}
+
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if(![keyPath isEqualToString:@"contentOffset"])
+        return;
+    
+    CGPoint newValue = [[change objectForKey:NSKeyValueChangeNewKey] CGPointValue];
+    CGPoint oldValue = [[change objectForKey:NSKeyValueChangeOldKey] CGPointValue];
+    
+    if (newValue.y > oldValue.y && newValue.y > -65.0f) {
+        didPlayPullSound = NO;
+    }
+    
+    if(newValue.y == oldValue.y) return;
+    
+    if(newValue.y <= -65.0f && newValue.y < oldValue.y && ![self.webView isLoading] && !didPlayPullSound  && !didTriggerRefresh) {
+        NSLog(@"Play Pull Sound:  %f, %f, %i, %i", newValue.y, oldValue.y, [self.webView isLoading], didPlayPullSound);
+
+        // triggered
+        [SoundUtil playPullSound];
+        didPlayPullSound = YES;
+    }
 }
 
 #pragma mark - Hybrid Helper Methods
@@ -176,7 +211,10 @@
     self.lastWebViewRefreshDate = [NSDate date];
 	//  update the last update date
 	[_refreshHeaderView refreshLastUpdatedDate];
-
+    if (!_pullToRefreshEnabled) {
+        [self.scrollView addObserver:self forKeyPath:@"contentOffset" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
+        _pullToRefreshEnabled = YES;
+    }
 }
 
 
@@ -184,7 +222,10 @@
 {
     self.lastWebViewRefreshDate = [NSDate date];
     [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:(UIScrollView * )_refreshHeaderView.superview];
-
+    if([self isViewLoaded] && self.view.window && didTriggerRefresh){
+        [SoundUtil playRollupSound];
+    }
+    didTriggerRefresh = NO;
 }
 
 
@@ -192,7 +233,6 @@
 
 - (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
 {
-    
     if ([self.webBridge handlesRequest:request]) {
         return NO;
     }
@@ -208,8 +248,9 @@
         [self performSelector:@selector(hideRefreshingState) withObject:nil afterDelay:0.3];
         return;
     }
-    
+    didTriggerRefresh = YES;
     [self.webView stringByEvaluatingJavaScriptFromString:@"WPApp.pullToRefresh();"];
+
 }
 
 - (BOOL)egoRefreshTableHeaderDataSourceIsLoading:(EGORefreshTableHeaderView*)view {
@@ -232,6 +273,10 @@
 - (void)hideRefreshingState {
     self.lastWebViewRefreshDate = [NSDate date];
     [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:self.scrollView];
+    if([self isViewLoaded] && self.view.window && didTriggerRefresh){
+        [SoundUtil playRollupSound];
+    }
+    didTriggerRefresh = NO;
 }
 
 #pragma mark -

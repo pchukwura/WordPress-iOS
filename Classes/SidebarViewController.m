@@ -18,7 +18,6 @@
 #import "PagesViewController.h"
 #import "CommentsViewController.h"
 #import "WPReaderViewController.h"
-#import "WPTableViewController.h"
 #import "SettingsViewController.h"
 #import "StatsWebViewController.h"
 #import "PanelNavigationConstants.h"
@@ -30,6 +29,7 @@
 #import "QuickPhotoButtonView.h"
 #import "CrashReportViewController.h"
 #import "NotificationsViewController.h"
+#import "SoundUtil.h"
 
 // Height for reader/notification/blog cells
 #define SIDEBAR_CELL_HEIGHT 51.0f
@@ -186,8 +186,8 @@
         // In iOS 5, the first detailViewController that we load during launch does not
         // see its viewWillAppear and viewDidAppear methods fire. As a work around, we can
         // present our content with a slight delay, and then the events fire.
-        // TODO: Find a true fix and remove this workaround.
-        // See http://ios.trac.wordpress.org/ticket/1114
+        // Need to find a true fix and remove this workaround.
+        // See http://ios.trac.wordpress.org/ticket/1114 and #1135
         if (IS_IPHONE && !( [[self.resultsController fetchedObjects] count] == 0 && ! [WordPressComApi sharedApi].username )) {
             // Don't delay presentation on iPhone, or the sidebar is briefly visible after launch
             [self presentContent];
@@ -407,7 +407,7 @@ NSLog(@"%@", self.sectionInfoArray);
     [self.sectionInfoArray enumerateObjectsUsingBlock:^(SectionInfo *obj, NSUInteger idx, BOOL *stop) {
         if (([obj.blog isWPcom] && [obj.blog.blogID isEqualToNumber:blogId])
             ||
-           ( [obj.blog getOptionValue:@"jetpack_client_id"] != nil && [[obj.blog getOptionValue:@"jetpack_client_id"]  isEqualToNumber:blogId] ) ) {
+           ( [obj.blog getOptionValue:@"jetpack_client_id"] != nil && [[[obj.blog getOptionValue:@"jetpack_client_id"] numericValue]  isEqualToNumber:blogId] ) ) {
             targetSection = obj;
             sectionNumber = idx;
             *stop = YES;
@@ -986,7 +986,10 @@ NSLog(@"%@", self.sectionInfoArray);
                         [webViewController setWpLoginURL:[NSURL URLWithString:blog.loginURL]];
                     }
                     [self.panelNavigationController setDetailViewController:webViewController closingSidebar:closingSidebar];
-                }        
+                }
+                if (IS_IPAD) {
+                    [SoundUtil playSwipeSound];
+                }
                 return;
             case 5:
                  dashboardURL = [blog.xmlrpc stringByReplacingOccurrencesOfString:@"xmlrpc.php" withString:@"wp-admin/"];
@@ -1015,11 +1018,18 @@ NSLog(@"%@", self.sectionInfoArray);
                     [webViewController setPassword:[blog fetchPassword]];
                     [webViewController setWpLoginURL:[NSURL URLWithString:blog.loginURL]];
                     [self.panelNavigationController setDetailViewController:webViewController closingSidebar:closingSidebar];
-                }                
+                }
+                if (IS_IPAD) {
+                    [SoundUtil playSwipeSound];
+                }
                 return;
             default:
                 controllerClass = [PostsViewController class];
                 break;    
+        }
+        
+        if (IS_IPAD) {
+            [SoundUtil playSwipeSound];
         }
         
         [[NSNotificationCenter defaultCenter] postNotificationName:kSelectedBlogChanged 

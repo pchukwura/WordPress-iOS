@@ -1,5 +1,5 @@
 //
-//  PanelNavigationControllerViewController.m
+//  PanelNavigationController.m
 //  WordPress
 //
 //  Created by Jorge Bernal on 5/21/12.
@@ -16,14 +16,13 @@
 #import "Note.h"
 
 #define MENU_BUTTON_WIDTH 38.0f
+#import "SoundUtil.h"
 
 #pragma mark -
 
 @interface PanelNavigationController () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) UINavigationController *navigationController;
-// FIXME: masterView is a shortcut to masterViewController.view while detailView
-// is a container for detailViewController.view, which can be confusing
-@property (nonatomic, strong) UIView *detailView;
+@property (nonatomic, strong) UIView *detailViewContainer;
 @property (weak, nonatomic, readonly) UIView *masterView;
 @property (weak, nonatomic, readonly) UIView *rootView;
 @property (weak, nonatomic, readonly) UIView *topView;
@@ -108,10 +107,11 @@
     BOOL _panned;
     BOOL _pushing;
 }
+
 @synthesize detailViewController = _detailViewController;
 @synthesize masterViewController = _masterViewController;
 @synthesize navigationController = _navigationController;
-@synthesize detailView = _detailView;
+@synthesize detailViewContainer = _detailViewContainer;
 @synthesize detailViewControllers = _detailViewControllers;
 @synthesize detailViews = _detailViews;
 @synthesize detailViewWidths = _detailViewWidths;
@@ -157,31 +157,31 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.detailView = [[UIView alloc] init];
+    self.detailViewContainer = [[UIView alloc] init];
     
     if (IS_IPAD) {
-        self.detailView.autoresizingMask = UIViewAutoresizingFlexibleHeight;
+        self.detailViewContainer.autoresizingMask = UIViewAutoresizingFlexibleHeight;
     } else {
-        self.detailView.autoresizingMask = (UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth);
+        self.detailViewContainer.autoresizingMask = (UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth);
     }
-    self.detailView.autoresizesSubviews = YES;
-    self.detailView.clipsToBounds = YES;
-    [self.view addSubview:self.detailView];
+    self.detailViewContainer.autoresizesSubviews = YES;
+    self.detailViewContainer.clipsToBounds = YES;
+    [self.view addSubview:self.detailViewContainer];
     
     if (self.navigationController) {
         [self addChildViewController:self.navigationController];
-        [self.detailView addSubview:self.navigationController.view];
+        [self.detailViewContainer addSubview:self.navigationController.view];
         [self.navigationController didMoveToParentViewController:self];
     } else if (self.detailViewController) {
         UIView *wrappedView = [self createWrapViewForViewController:self.detailViewController];
-        [self.detailView addSubview:wrappedView];
+        [self.detailViewContainer addSubview:wrappedView];
     }
-    self.detailView.frame = CGRectMake(0, 0, DETAIL_WIDTH, DETAIL_HEIGHT);
-    [self.detailViews addObject:self.detailView];
+    self.detailViewContainer.frame = CGRectMake(0, 0, DETAIL_WIDTH, DETAIL_HEIGHT);
+    [self.detailViews addObject:self.detailViewContainer];
     [self.detailViewWidths addObject:[NSNumber numberWithFloat:DETAIL_WIDTH]];
     self.masterView.frame = CGRectMake(0, 0, DETAIL_LEDGE_OFFSET, self.view.frame.size.height);
     self.masterView.autoresizingMask = UIViewAutoresizingFlexibleHeight;
-    [self.view insertSubview:self.masterViewController.view belowSubview:self.detailView];
+    [self.view insertSubview:self.masterViewController.view belowSubview:self.detailViewContainer];
 
     //Right border view for sidebar
     _sidebarBorderView = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"sidebar_border_bg"]];
@@ -199,7 +199,6 @@
     }
     self.view.backgroundColor = [UIColor colorWithPatternImage:[UIImage imageNamed:@"background"]];
     if (IS_IPAD) {
-        //TODO: Couldn't get the proper height of the view depending on orientation, help?
         CGFloat height = UIInterfaceOrientationIsPortrait(self.interfaceOrientation) ? self.view.bounds.size.height: self.view.bounds.size.width;
         //The iOS simulator would pull in the wrong values
         if (UIInterfaceOrientationIsPortrait(self.interfaceOrientation) && height > self.view.bounds.size.width)
@@ -232,7 +231,7 @@
 }
 
 - (void)viewDidUnload {
-    self.detailView = nil;
+    self.detailViewContainer = nil;
     self.detailViews = nil;
     self.detailViewWidths = nil;
 
@@ -253,7 +252,7 @@
     } else {
         viewToPrepare = [self createWrapViewForViewController:self.detailViewController];
     }
-    // FIXME: keep sliding status
+
     [self prepareDetailView:viewToPrepare forController:self.detailViewController];
 
     [self addPanner];
@@ -334,9 +333,9 @@
 - (void)adjustFramesForRotation {
     // Set the detail view's new width due to the rotation on the iPad if wide panels are expected.
     if (IS_IPAD && [self viewControllerExpectsWidePanel:self.detailViewController]) {
-        CGRect frm = self.detailView.frame;
+        CGRect frm = self.detailViewContainer.frame;
         frm.size.width = IPAD_WIDE_PANEL_WIDTH;
-        self.detailView.frame = frm;
+        self.detailViewContainer.frame = frm;
     }
     
     // When rotated the detailviewwidths may become invalid.
@@ -380,7 +379,7 @@
     UIView *view = [self viewOrViewWrapper:self.detailViewController.view];
     [view removeFromSuperview];
     self.detailViewController = nil;
-    [self removeShadowFrom:self.detailView];
+    [self removeShadowFrom:self.detailViewContainer];
 }
 
 - (PanelViewWrapper *)wrapViewForViewController:(UIViewController *)controller {
@@ -478,14 +477,14 @@
 
 - (UIView *)topView {
     if ([self.detailViewControllers count] == 0) {
-        return self.detailView;
+        return self.detailViewContainer;
     } else {
         return [self viewOrViewWrapper:self.topViewController.view];
     }
 }
 
 - (UIView *)lastVisibleView {
-    __block UIView *view = self.detailView;
+    __block UIView *view = self.detailViewContainer;
     [self.detailViewControllers enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
         UIView *vcView = [(UIViewController *)obj view];
         if (CGRectGetMinX(vcView.frame) < self.rootView.bounds.size.width) {
@@ -646,7 +645,7 @@
             BOOL newIsWide = [self viewControllerExpectsWidePanel:_detailViewController];
             
             if (newIsWide != oldWasWide) {
-                CGRect frm = self.detailView.frame;
+                CGRect frm = self.detailViewContainer.frame;
                 if (newIsWide) {
                     frm.origin.x = self.view.bounds.size.width - IPAD_WIDE_PANEL_WIDTH;
                     frm.size.width = IPAD_WIDE_PANEL_WIDTH;
@@ -657,13 +656,13 @@
                 // the size changed so update the stored width and the width and position of the detailView controller
                 [self.detailViewWidths removeObjectAtIndex:0];
                 [self.detailViewWidths insertObject:[NSNumber numberWithFloat:frm.size.width] atIndex:0];
-                if(self.detailView.frame.origin.x != frm.origin.x) {
+                if(self.detailViewContainer.frame.origin.x != frm.origin.x) {
                     [UIView animateWithDuration:0.3 animations:^{
-                        self.detailView.frame = frm;
+                        self.detailViewContainer.frame = frm;
                     }];
                     _stackOffset = ABS(SIDEBAR_WIDTH - frm.origin.x);
                 } else {
-                    self.detailView.frame = frm; // update the width regardless.
+                    self.detailViewContainer.frame = frm; // update the width regardless.
                 }
             }
             
@@ -671,7 +670,7 @@
             if (_isAppeared) {
                 [_detailViewController vdc_viewWillAppear:NO];
             }
-            [self.detailView addSubview:wrappedView];
+            [self.detailViewContainer addSubview:wrappedView];
             
             if (_isAppeared) {
                 [_detailViewController vdc_viewDidAppear:NO];
@@ -679,7 +678,7 @@
             [_detailViewController didMoveToParentViewController:self];
         }
     }
-    [self addShadowTo:_detailView];
+    [self addShadowTo:_detailViewContainer];
 
     if (IS_IPHONE && closingSidebar) {
         [self closeSidebar];
@@ -865,6 +864,8 @@
 }
 
 - (void)showSidebarAnimated:(BOOL)animated {
+    [SoundUtil playSwipeSound];
+    
     [UIView animateWithDuration:OPEN_SLIDE_DURATION(animated) delay:0 options:0 | UIViewAnimationOptionLayoutSubviews | UIViewAnimationOptionBeginFromCurrentState animations:^{
         [self setStackOffset:0 duration:0];
         [self disableDetailView];
@@ -873,6 +874,8 @@
 }
 
 - (void)showSidebarWithVelocity:(CGFloat)velocity {
+    [SoundUtil playSwipeSound];
+
     [self disableDetailView];
     [self setStackOffset:0.f withVelocity:velocity];
 }
@@ -888,11 +891,19 @@
     } completion:^(BOOL finished) {
         [self enableDetailView];
     }];
+    
+    if(IS_IPHONE && !self.modalViewController) {
+        [SoundUtil playSwipeSound];
+    }
 }
 
 - (void)closeSidebarWithVelocity:(CGFloat)velocity {
     [self enableDetailView];
     [self setStackOffset:(DETAIL_LEDGE_OFFSET - DETAIL_OFFSET) withVelocity:velocity];
+    
+    if(IS_IPHONE) {
+        [SoundUtil playSwipeSound];
+    }
 }
 
 - (void)toggleSidebar {
@@ -908,20 +919,20 @@
         return;
 
     [self closeSidebarAnimated:NO];
-    CGRect previousFrame = self.detailView.frame;
+    CGRect previousFrame = self.detailViewContainer.frame;
     [UIView animateWithDuration:0.5f
                           delay:DURATION_FAST
                         options:UIViewAnimationOptionCurveEaseInOut
                      animations:^{
                          CGRect frame = previousFrame;
                          frame.origin.x += DETAIL_LEDGE;
-                         self.detailView.frame = frame;
+                         self.detailViewContainer.frame = frame;
                      } completion:^(BOOL finished) {
                          [UIView animateWithDuration:DURATION_FAST
                                                delay:0.f
                                              options:UIViewAnimationOptionCurveEaseInOut
                                           animations:^{
-                                              self.detailView.frame = previousFrame;
+                                              self.detailViewContainer.frame = previousFrame;
                                           } completion:nil];
                      }];
 }
@@ -933,12 +944,11 @@
 - (void)disableDetailView {
     if (IS_IPAD) return;
 
-    // TODO: remove pan recognizer?
     if (!self.detailTapper) {
         self.detailTapper = [UIButton buttonWithType:UIButtonTypeCustom];
         self.detailTapper.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        self.detailTapper.frame = self.detailView.bounds;
-        [self.detailView addSubview:self.detailTapper];
+        self.detailTapper.frame = self.detailViewContainer.bounds;
+        [self.detailViewContainer addSubview:self.detailTapper];
         [self.detailTapper addTarget:self action:@selector(centerTapped) forControlEvents:UIControlEventTouchUpInside];
         self.detailTapper.backgroundColor = [UIColor clearColor];
         UIPanGestureRecognizer *panner = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panned:)];
@@ -947,7 +957,7 @@
         [self.detailTapper addGestureRecognizer:panner];
     }
     
-    CGRect tapFrame = self.detailView.bounds;
+    CGRect tapFrame = self.detailViewContainer.bounds;
     tapFrame.origin.y = 44.0f;
     self.detailTapper.frame = tapFrame;
 
@@ -1037,8 +1047,7 @@
      
      When a soft limit is reached, we add elasticity
      Views can't move over hard limits
-     
-     TODO: store lastFullyVisible for rotation
+
      */
     if (sender.state == UIGestureRecognizerStateBegan) {
         _panned = YES;
@@ -1106,10 +1115,10 @@
                 [self animatePoppedIcon];
                 _isShowingPoppedIcon = NO;
                 [self popToRootViewControllerAnimated:YES];
+                [SoundUtil playDiscardSound];
                 [self.delegate resetView];
             }
         } else {
-            // TODO: multiple panel panning
             if (ABS(velocity) < 300) {
                 if (offset < DETAIL_LEDGE_OFFSET / 3) {
                     [self showSidebarWithVelocity:velocity];
@@ -1203,7 +1212,7 @@
         [UIView setAnimationCurve:UIViewAnimationCurveEaseOut];
         [UIView setAnimationDuration:duration];
     }
-    [self setViewOffset:viewX forView:self.detailView];
+    [self setViewOffset:viewX forView:self.detailViewContainer];
     remainingOffset -= usedOffset;
 
     NSInteger viewCount = [self.detailViews count];
@@ -1278,7 +1287,7 @@
 
 - (void)setStackOffset:(CGFloat)offset withVelocity:(CGFloat)velocity{
     velocity = MAX(-1000, MIN(1000, velocity * 0.3)); // limit the velocity
-    CALayer *viewLayer = self.detailView.layer;
+    CALayer *viewLayer = self.detailViewContainer.layer;
     [viewLayer removeAllAnimations];
     
     CGFloat remainingOffset = offset;
@@ -1288,7 +1297,7 @@
     CGFloat usedOffset = MIN(DETAIL_LEDGE_OFFSET - DETAIL_OFFSET, remainingOffset);
     CGFloat viewX = DETAIL_LEDGE_OFFSET - usedOffset;
     
-    [self animateView:self.detailView toOffset:viewX withVelocity:velocity];
+    [self animateView:self.detailViewContainer toOffset:viewX withVelocity:velocity];
     remainingOffset -= usedOffset;
     
     NSInteger viewCount = [self.detailViews count];
@@ -1434,7 +1443,7 @@
 }
 
 - (NSInteger)indexForView:(UIView *)view {
-    if (view == self.detailView) {
+    if (view == self.detailViewContainer) {
         return 0;
     }
     __block NSInteger index = -1;
@@ -1449,7 +1458,7 @@
 
 - (UIView *)viewForIndex:(NSUInteger)index {
     if (index == 0) {
-        return self.detailView;
+        return self.detailViewContainer;
     } else {
         if (index > [self.detailViewControllers count]) {
             return nil;
@@ -1459,7 +1468,7 @@
 }
 
 - (UIView *)viewBefore:(UIView *)view {
-    if (view == self.detailView) {
+    if (view == self.detailViewContainer) {
         return nil;
     }
 
@@ -1483,7 +1492,7 @@
                 
                 //get the correct overlay view, if it's the first panel (detailView), it's in a subview
                 UIView *alphaView = view;
-                if (view == self.detailView && [view.subviews count] >= 1) {
+                if (view == self.detailViewContainer && [view.subviews count] >= 1) {
                     alphaView = [view.subviews objectAtIndex:0];
                 }
                 
@@ -1523,8 +1532,8 @@
     }
     
     // Ensure that the detailView is not faded if it is the only view.
-    if ([self.detailViews count] == 1 && [[self.detailView subviews] count] > 1) {
-        UIView *aView = [[self.detailView subviews] objectAtIndex:1]; // This should be the PanelViewWrapper.
+    if ([self.detailViews count] == 1 && [[self.detailViewContainer subviews] count] > 1) {
+        UIView *aView = [[self.detailViewContainer subviews] objectAtIndex:1]; // This should be the PanelViewWrapper.
         if ([aView isKindOfClass:[PanelViewWrapper class]]) {
             PanelViewWrapper *wrapperView = (PanelViewWrapper *)aView;
             wrapperView.overlay.alpha = 0.0f;            
@@ -1637,7 +1646,7 @@
         UIView *topView;
         if ([self.detailViewControllers count] == 0) {
             [self closeSidebar];
-            topView = self.detailView;
+            topView = self.detailViewContainer;
         } else {
             topView = [self viewOrViewWrapper:self.topViewController.view];
         }
@@ -1763,12 +1772,12 @@
             [self showSidebar];
         }
         //make sure there's no tint on the detailView overlay any longer
-        if ([_detailView.subviews count] >= 1){
-            PanelViewWrapper *overlayView = [_detailView.subviews objectAtIndex:0];
+        if ([_detailViewContainer.subviews count] >= 1){
+            PanelViewWrapper *overlayView = [_detailViewContainer.subviews objectAtIndex:0];
             overlayView.overlay.alpha = 0.0f;
         }
         if (self.detailViewController)
-            [self addShadowTo: _detailView];
+            [self addShadowTo: _detailViewContainer];
         [UIView animateWithDuration:0.5f
                          animations:^{
                              [_popPanelsView setAlpha:0.0f];

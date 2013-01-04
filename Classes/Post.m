@@ -127,8 +127,12 @@
 	self.permaLink      = [postInfo objectForKey:@"permaLink"];
 	self.mt_excerpt		= [postInfo objectForKey:@"mt_excerpt"];
 	self.mt_text_more	= [postInfo objectForKey:@"mt_text_more"];
+    NSString *wp_more_text = [postInfo objectForKey:@"wp_more_text"];
+    if ([wp_more_text length] > 0) {
+        wp_more_text = [@" " stringByAppendingFormat:wp_more_text]; // Give us a little padding.
+    }
     if (self.mt_text_more && self.mt_text_more.length > 0) {
-        self.content = [NSString stringWithFormat:@"%@\n\n<!--more-->\n\n%@", self.content, self.mt_text_more];
+        self.content = [NSString stringWithFormat:@"%@\n\n<!--more%@-->\n\n%@", self.content, wp_more_text, self.mt_text_more];
         self.mt_text_more = nil;
     }
 	self.wp_slug		= [postInfo objectForKey:@"wp_slug"];
@@ -374,8 +378,7 @@
 
 - (void)postPostWithSuccess:(void (^)())success failure:(void (^)(NSError *error))failure {
     WPFLogMethod();
-    // XML-RPC doesn't like empty post thumbnail ID's for new posts, but it's required to delete them on edit. see #1395
-    // TODO: refactor XMLRPCDictionary to differentiate between posting and editing
+    // XML-RPC doesn't like empty post thumbnail ID's for new posts, but it's required to delete them on edit. see #1395 and #1507
     NSMutableDictionary *xmlrpcDictionary = [NSMutableDictionary dictionaryWithDictionary:[self XMLRPCDictionary]];
     if ([[xmlrpcDictionary objectForKey:@"wp_post_thumbnail"] isEqual:@""]) {
         [xmlrpcDictionary removeObjectForKey:@"wp_post_thumbnail"];
@@ -487,14 +490,12 @@
         [self.blog.api callMethod:@"metaWeblog.deletePost"
                        parameters:parameters
                           success:^(AFHTTPRequestOperation *operation, id responseObject) {
-                              [[self managedObjectContext] deleteObject:self];
                               if (success) success();
                           } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
                               if (failure) failure(error);
                           }];
     }
-    [[self managedObjectContext] deleteObject:self];
-    [self save];
+    [self remove];
     if (!remote && success) {
         success();
     }

@@ -148,6 +148,9 @@
 #define kNotificationTypeReblog @"rb"
 #define kNotificationTypeAchievement @"ac"
 
+#define kSettingsMuteSoundsKey @"settings_mute_sounds"
+
+
 typedef NS_ENUM(NSUInteger, MediaType) {
 	kImage,
 	kVideo

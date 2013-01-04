@@ -213,7 +213,6 @@
     if (media.remoteStatus == MediaRemoteStatusFailed) {
         [media uploadWithSuccess:^{
             if (([media isDeleted])) {
-                // FIXME: media deleted during upload should cancel the upload. In the meantime, we'll try not to crash
                 NSLog(@"Media deleted while uploading (%@)", media);
                 return;
             }
@@ -223,8 +222,7 @@
     } else if (media.remoteStatus == MediaRemoteStatusPushing) {
         [media cancelUpload];
     } else if (media.remoteStatus == MediaRemoteStatusProcessing) {
-        // TODO: can't cancel while processing
-        // do nothing
+        // Do nothing. See trac #1508
     } else {
         MediaObjectViewController *mediaView = [[MediaObjectViewController alloc] initWithNibName:@"MediaObjectView" bundle:nil];
         [mediaView setMedia:media];
@@ -386,10 +384,7 @@
 }
 
 - (void)actionSheet:(UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex {
-    self.currentActionSheet = nil;
-}
 
-- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
 	if(isShowingMediaPickerActionSheet == YES) {
 		switch (actionSheet.numberOfButtons) {
 			case 2:
@@ -473,6 +468,8 @@
     
     WordPressAppDelegate *appDelegate = (WordPressAppDelegate*)[[UIApplication sharedApplication] delegate];
     [appDelegate setAlertRunning:NO];
+    
+    self.currentActionSheet = nil;
 }
 
 #pragma mark -
@@ -1331,7 +1328,6 @@
 
     [imageMedia uploadWithSuccess:^{
         if ([imageMedia isDeleted]) {
-            // FIXME: media deleted during upload should cancel the upload. In the meantime, we'll try not to crash
             NSLog(@"Media deleted while uploading (%@)", imageMedia);
             return;
         }
@@ -1428,7 +1424,6 @@
 
 		[videoMedia uploadWithSuccess:^{
             if ([videoMedia isDeleted]) {
-                // FIXME: media deleted during upload should cancel the upload. In the meantime, we'll try not to crash
                 NSLog(@"Media deleted while uploading (%@)", videoMedia);
                 return;
             }
@@ -1471,7 +1466,6 @@
 - (void)mediaDidUploadSuccessfully:(NSNotification *)notification {
     Media *media = (Media *)[notification object];
     if ((media == nil) || ([media isDeleted])) {
-        // FIXME: media deleted during upload should cancel the upload. In the meantime, we'll try not to crash
         NSLog(@"Media deleted while uploading (%@)", media);
         return;
     }
@@ -1481,8 +1475,6 @@
 }
 
 - (void)mediaUploadFailed:(NSNotification *)notification {
-    /*Media *media = (Media *)[notification object];
-    [media remove];*/
 	self.isAddingMedia = NO;
 }
 

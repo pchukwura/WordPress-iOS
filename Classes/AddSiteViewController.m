@@ -8,6 +8,10 @@
 #import "AddUsersBlogsViewController.h"
 #import "WordPressComApi.h"
 
+@interface EditSiteViewController (PrivateMethods)
+- (void)validationDidFail:(id)wrong;
+@end
+
 @implementation AddSiteViewController
 
 - (void)viewDidLoad {
@@ -93,6 +97,9 @@
 				[self.navigationController popToRootViewControllerAnimated:YES];
             [[NSNotificationCenter defaultCenter] postNotificationName:@"BlogsRefreshNotification" object:nil];
         }
+    } else {
+        NSError *error = [NSError errorWithDomain:@"WordPress" code:0 userInfo:@{NSLocalizedDescriptionKey: NSLocalizedString(@"Sorry, you credentials were good but you don't seem to have access to any blogs", @"")}];
+        [self validationDidFail:error];
     }
 	[self.navigationItem setHidesBackButton:NO animated:NO];
     saveButton.enabled = YES;            

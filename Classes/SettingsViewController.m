@@ -20,6 +20,8 @@
     - Video API
     - Video Quality
     - Video Content
+ - Sounds 
+    - Mute Sounds
  - Info
     - Version
     - About
@@ -27,6 +29,7 @@
 
  */
 
+#import <QuartzCore/QuartzCore.h>
 #import "SettingsViewController.h"
 #import "WordPressAppDelegate.h"
 #import "EditSiteViewController.h"
@@ -44,6 +47,7 @@ typedef enum {
     SettingsSectionWpcom,
     SettingsSectionMedia,
     SettingsSectionNotifications,
+    SettingsSectionSounds,
     SettingsSectionInfo,
     
     SettingsSectionCount
@@ -59,6 +63,9 @@ typedef enum {
 - (UITableViewCell *)cellForIndexPath:(NSIndexPath *)indexPath;
 - (void)checkCloseButton;
 - (void)setupMedia;
+- (void)handleExtraDebugChanged:(id)sender;
+- (void)handleMuteSoundsChanged:(id)sender;
+- (void)maskImageView:(UIImageView *)imageView corner:(UIRectCorner)corner;
 
 @end
 
@@ -197,6 +204,22 @@ typedef enum {
 }
 
 
+- (void)handleMuteSoundsChanged:(id)sender {
+    UISwitch *aSwitch = (UISwitch *)sender;
+    [[NSUserDefaults standardUserDefaults] setBool:!(aSwitch.on) forKey:kSettingsMuteSoundsKey];
+    [NSUserDefaults resetStandardUserDefaults];
+}
+
+- (void)maskImageView:(UIImageView *)imageView corner:(UIRectCorner)corner {
+    CGRect frame = CGRectMake(0.0, 0.0, 43.0, 43.0);
+    UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:frame
+                                               byRoundingCorners:corner cornerRadii:CGSizeMake(7.0f, 7.0f)];
+    CAShapeLayer *maskLayer = [CAShapeLayer layer];
+    maskLayer.frame = frame;
+    maskLayer.path = path.CGPath;
+    imageView.layer.mask = maskLayer;
+}
+
 #pragma mark - 
 #pragma mark Table view data source
 
@@ -209,10 +232,13 @@ typedef enum {
     switch (section) {
         case SettingsSectionBlogs:
             return [[self.resultsController fetchedObjects] count];
+            
         case SettingsSectionBlogsAdd:
             return 1;
+            
         case SettingsSectionWpcom:
             return [WordPressComApi sharedApi].username ? 2 : 1;
+            
         case SettingsSectionMedia:
             return [mediaSettingsArray count];
         case SettingsSectionNotifications:
@@ -220,8 +246,13 @@ typedef enum {
                 return 1;
             else
                 return 0;
+            
+        case SettingsSectionSounds :
+            return 1;
+            
         case SettingsSectionInfo:
             return 3;
+            
         default:
             return 0;
     }
@@ -237,21 +268,29 @@ typedef enum {
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     if (section == SettingsSectionBlogs) {
-        return NSLocalizedString(@"Blogs", @"");
+        return NSLocalizedString(@"Blogs", @"Title label for the user blogs in the app settings");
+        
     } else if (section == SettingsSectionWpcom) {
         return NSLocalizedString(@"WordPress.com", @"");
+        
     } else if (section == SettingsSectionBlogsAdd) {
-        return nil;    
+        return nil;
+        
     } else if (section == SettingsSectionMedia) {
-        return NSLocalizedString(@"Media", @"");
+        return NSLocalizedString(@"Media", @"Title label for the media settings section in the app settings");
     } else if (section == SettingsSectionNotifications) {
         if ([[WordPressComApi sharedApi] hasCredentials])
             return NSLocalizedString(@"Notifications", @"");
         else
             return nil;
+    
+    } else if (section == SettingsSectionSounds) {
+        return NSLocalizedString(@"Sounds", @"Title label for the sounds section in the app settings.");
+        
     } else if (section == SettingsSectionInfo) {
-        return NSLocalizedString(@"App Info", @"");
+        return NSLocalizedString(@"App Info", @"Title label for the application information section in the app settings");
     }
+    
     return nil;
 }
 
@@ -265,11 +304,21 @@ typedef enum {
         cell.textLabel.text = blog.blogName;
         cell.detailTextLabel.text = blog.hostURL;
         [cell.imageView setImageWithBlavatarUrl:blog.blavatarUrl isWPcom:blog.isWPcom];
+        
+        if (indexPath.row == 0) {
+            [self maskImageView:cell.imageView corner:UIRectCornerTopLeft];
+        } else if (indexPath.row == ([self.tableView numberOfRowsInSection:indexPath.section] -1)) {
+            [self maskImageView:cell.imageView corner:UIRectCornerBottomLeft];
+        } else {
+            cell.imageView.layer.mask = NULL;
+        }
+        
     } else if (indexPath.section == SettingsSectionBlogsAdd) {
         cell.textLabel.text = NSLocalizedString(@"Add a Blog", @"");
         cell.textLabel.textAlignment = UITextAlignmentCenter;
         cell.selectionStyle = UITableViewCellSelectionStyleBlue;
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        
     } else if (indexPath.section == SettingsSectionWpcom) {
         if ([[WordPressComApi sharedApi] hasCredentials]) {
             if (indexPath.row == 0) {
@@ -286,6 +335,7 @@ typedef enum {
             cell.textLabel.text = NSLocalizedString(@"Sign In", @"Sign in to WordPress.com");
             cell.selectionStyle = UITableViewCellSelectionStyleBlue;
         }
+        
     } else if (indexPath.section == SettingsSectionMedia){
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         
@@ -302,6 +352,15 @@ typedef enum {
         
         NSArray *titles = [dict objectForKey:@"Titles"];
         cell.detailTextLabel.text = [titles objectAtIndex:index];
+        
+    } else if(indexPath.section == SettingsSectionSounds) {
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        cell.accessoryType = UITableViewCellAccessoryNone;
+        cell.textLabel.text = NSLocalizedString(@"Enable Sounds", @"Title for the setting to enable in-app sounds");
+        UISwitch *aSwitch = [[UISwitch alloc] initWithFrame:CGRectZero]; // Frame is ignored.
+        [aSwitch addTarget:self action:@selector(handleMuteSoundsChanged:) forControlEvents:UIControlEventValueChanged];
+        aSwitch.on = ![[NSUserDefaults standardUserDefaults] boolForKey:kSettingsMuteSoundsKey];
+        cell.accessoryView = aSwitch;
 
     } else if (indexPath.section == SettingsSectionNotifications) {
         if ([[WordPressComApi sharedApi] hasCredentials]) {
@@ -312,6 +371,9 @@ typedef enum {
         if (indexPath.row == 0) {
             cell.textLabel.text = NSLocalizedString(@"Version:", @"");
             NSString *appversion = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleVersion"];
+#if DEBUG
+            appversion = [appversion stringByAppendingString:@" (DEV)"];
+#endif
             cell.detailTextLabel.text = appversion;
             cell.selectionStyle = UITableViewCellSelectionStyleNone;
         } else if (indexPath.row == 1) {
@@ -337,6 +399,7 @@ typedef enum {
             cellIdentifier = @"BlogCell";
             cellStyle = UITableViewCellStyleSubtitle;
             break;
+            
         case SettingsSectionWpcom:
             if ([[WordPressComApi sharedApi] hasCredentials] && indexPath.row == 0) {
                 cellIdentifier = @"WpcomUsernameCell";
@@ -346,10 +409,16 @@ typedef enum {
                 cellStyle = UITableViewCellStyleDefault;
             }
             break;
+            
         case SettingsSectionMedia:
             cellIdentifier = @"Media";
             cellStyle = UITableViewCellStyleValue1;
             break;
+        
+        case SettingsSectionSounds:
+            cellIdentifier = @"Sounds";
+            break;
+            
         case SettingsSectionInfo:
             if (indexPath.row == 0) {
                 cellIdentifier = @"InfoCell";
@@ -420,8 +489,8 @@ typedef enum {
         if ([[WordPressComApi sharedApi] hasCredentials]) {
             if (indexPath.row == 1) {
                 // Present the Sign out ActionSheet
-                NSString *signOutTitle = NSLocalizedString(@"You are logged in as", @"");
-                signOutTitle = [NSString stringWithFormat:@"%@ %@", signOutTitle, [WordPressComApi sharedApi].username];
+                NSString *signOutTitle = NSLocalizedString(@"You are logged in as %@", @"");
+                signOutTitle = [NSString stringWithFormat:signOutTitle, [WordPressComApi sharedApi].username];
                 UIActionSheet *actionSheet;
                 actionSheet = [[UIActionSheet alloc] initWithTitle:signOutTitle 
                                                           delegate:self 
@@ -444,6 +513,8 @@ typedef enum {
     } else if (indexPath.section == SettingsSectionNotifications) {
         NotificationSettingsViewController *notificationSettingsViewController = [[NotificationSettingsViewController alloc] initWithStyle:UITableViewStyleGrouped];
         [self.navigationController pushViewController:notificationSettingsViewController animated:YES];
+    } else if (indexPath.section == SettingsSectionSounds) {
+        // nothing to do.
         
     } else if (indexPath.section == SettingsSectionInfo) {
         if (indexPath.row == 1) {

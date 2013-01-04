@@ -11,7 +11,9 @@
 #import "NSString+XMLExtensions.h"
 #import "PanelNavigationConstants.h"
 
-@implementation PostViewController
+@implementation PostViewController {
+    NSString *postObserverToken;
+}
 @synthesize titleTitleLabel, tagsTitleLabel, categoriesTitleLabel;
 @synthesize titleLabel, tagsLabel, categoriesLabel;
 @synthesize contentView;
@@ -24,6 +26,7 @@
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self removePostObserver];
 }
 
 
@@ -99,12 +102,18 @@
         
         UIBarButtonItem *spacer = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
         self.toolbarItems = [NSArray arrayWithObjects:editButton, previewButton, spacer, deleteButton, nil];
+     
+        // When content is long enough to scroll the contentWebView will be enabled for user interaction. In this case,
+        // touchesEnded: withEvent: will not be called.  Use a TapGestureRecognizer to detect taps in this case.
+        // If the webView is not enabled for interations, the recognizer won't detect taps and so won't interefer with touchesEnded: withEvent:.
+        UITapGestureRecognizer *tgr = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleWebViewTapped:)];
+        tgr.delegate = self;
+        [contentWebView addGestureRecognizer:tgr];
         
     } else {
         self.navigationItem.rightBarButtonItem = editButton;
-    }    
+    }
 }
-
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
@@ -114,6 +123,15 @@
     }
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+
+    [self addPostObserver];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [self removePostObserver];
+}
 
 #pragma mark -
 #pragma mark Accessors
@@ -128,7 +146,9 @@
 
 
 - (void)setPost:(Post *)aPost {
+    [self removePostObserver];
     self.apost = aPost;
+    [self addPostObserver];
 }
 
 
@@ -139,6 +159,28 @@
 
 #pragma mark -
 #pragma mark Instance Methods
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    return YES;
+}
+
+- (void)handleWebViewTapped:(id)sender {
+    [self showModalEditor];
+}
+
+- (void)addPostObserver {
+    __weak PostViewController *postViewController = self;
+    postObserverToken = [self.apost addObserverForKeyPath:@"content" task:^(id obj, NSDictionary *change) {
+        [postViewController refreshUI];
+    }];
+}
+
+- (void)removePostObserver {
+    if (postObserverToken) {
+        [self.apost removeObserverWithBlockToken:postObserverToken];
+        postObserverToken = nil;
+    }
+}
 
 - (void)showDeletePostActionSheet:(id)sender {
     if (!isShowingActionSheet) {

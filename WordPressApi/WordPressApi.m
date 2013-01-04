@@ -156,12 +156,15 @@
                 NSError *error = NULL;
                 NSRegularExpression *rsdURLRegExp = [NSRegularExpression regularExpressionWithPattern:@"<link\\s+rel=\"EditURI\"\\s+type=\"application/rsd\\+xml\"\\s+title=\"RSD\"\\s+href=\"([^\"]*)\"[^/]*/>" options:NSRegularExpressionCaseInsensitive error:&error];
                 NSString *responseString = operation.responseString;
-                // FIXME: workaround for https://github.com/AFNetworking/AFNetworking/pull/638
-                // remove when it's fixed upstream
+                // Workaround for https://github.com/AFNetworking/AFNetworking/pull/638
+                // remove when it's fixed upstream. See http://ios.trac.wordpress.org/ticket/1516
                 if (responseString == nil && operation.responseData != nil) {
                     responseString = [[NSString alloc] initWithData:operation.responseData encoding:NSISOLatin1StringEncoding];
                 }
-                NSArray *matches = [rsdURLRegExp matchesInString:responseString options:0 range:NSMakeRange(0, [responseString length])];
+                NSArray *matches;
+                if (responseString) {
+                    matches = [rsdURLRegExp matchesInString:responseString options:0 range:NSMakeRange(0, [responseString length])];
+                }
                 NSString *rsdURL = nil;
                 if ([matches count]) {
                     NSRange rsdURLRange = [[matches objectAtIndex:0] rangeAtIndex:1];

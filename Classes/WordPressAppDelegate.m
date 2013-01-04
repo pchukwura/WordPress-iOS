@@ -17,6 +17,7 @@
 #import "CommentsViewController.h"
 #import "StatsWebViewController.h"
 #import "WPReaderViewController.h"
+#import "SoundUtil.h"
 
 @interface WordPressAppDelegate (Private)
 - (void)setAppBadge;
@@ -47,16 +48,19 @@
 #pragma mark UIApplicationDelegate Methods
 
 - (void)setupUserAgent {
+    // Keep a copy of the original userAgent for use with certain webviews in the app.
+    UIWebView *webView = [[UIWebView alloc] init];
+    NSString *defaultUA = [webView stringByEvaluatingJavaScriptFromString:@"navigator.userAgent"];
+    
     NSString *appVersion = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleVersion"];
     [[NSUserDefaults standardUserDefaults] setObject:appVersion forKey:@"version_preference"];
-    NSString *defaultUA = [NSString stringWithFormat:@"wp-iphone/%@ (%@ %@, %@) Mobile",
+    NSString *appUA = [NSString stringWithFormat:@"wp-iphone/%@ (%@ %@, %@) Mobile",
                            appVersion,
                            [[UIDevice currentDevice] systemName],
                            [[UIDevice currentDevice] systemVersion],
                            [[UIDevice currentDevice] model]
                            ];
-
-    NSDictionary *dictionary = [[NSDictionary alloc] initWithObjectsAndKeys: defaultUA, @"UserAgent", nil];
+    NSDictionary *dictionary = [[NSDictionary alloc] initWithObjectsAndKeys: appUA, @"UserAgent", defaultUA, @"DefaultUserAgent", appUA, @"AppUserAgent", nil];
     [[NSUserDefaults standardUserDefaults] registerDefaults:dictionary];
 }
 
@@ -127,6 +131,36 @@
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    UIDevice *device = [UIDevice currentDevice];
+	PLCrashReporter *crashReporter = [PLCrashReporter sharedReporter];
+    NSInteger crashCount = [[NSUserDefaults standardUserDefaults] integerForKey:@"crashCount"];
+
+	// Check for pending crash reports
+	if (![crashReporter hasPendingCrashReport]) {
+        // Empty log file if we didn't crash last time
+        [[FileLogger sharedInstance] reset];
+    } else {
+        crashCount += 1;
+        [[NSUserDefaults standardUserDefaults] setInteger:crashCount forKey:@"crashCount"];
+    }
+
+    NSString *extraDebug = [[NSUserDefaults standardUserDefaults] boolForKey:@"extra_debug"] ? @"YES" : @"NO";
+    WPFLog(@"===========================================================================");
+	WPFLog(@"Launching WordPress for iOS %@...", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"]);
+    WPFLog(@"Crashed last time: %@", [crashReporter hasPendingCrashReport] ? @"YES" : @"NO" );
+    WPFLog(@"Crash count:       %d", crashCount);
+#ifdef DEBUG
+    WPFLog(@"Debug mode:  Debug");
+#else
+    WPFLog(@"Debug mode:  Production");
+#endif
+    WPFLog(@"Extra debug: %@", extraDebug);
+    WPFLog(@"Device model: %@", [device platform]);
+    WPFLog(@"OS:        %@ %@", [device systemName], [device systemVersion]);
+    WPFLog(@"UDID:      %@", [device wordpressIdentifier]);
+    WPFLog(@"APN token: %@", [[NSUserDefaults standardUserDefaults] objectForKey:@"apnsDeviceToken"]);
+    WPFLog(@"===========================================================================");
+
     [self setupUserAgent];
 
     if([[NSUserDefaults standardUserDefaults] objectForKey:@"wpcom_authenticated_flag"] != nil) {
@@ -134,17 +168,6 @@
         if([tempIsAuthenticated isEqualToString:@"1"])
             self.isWPcomAuthenticated = YES;
     }
-
-#ifdef DEBUG
-    WPFLog(@"Notifications: sandbox");
-#else
-    WPFLog(@"Notifications: production");
-#endif
-
-	if(getenv("NSZombieEnabled"))
-		NSLog(@"NSZombieEnabled!");
-	else if(getenv("NSAutoreleaseFreedObjectCheckEnabled"))
-		NSLog(@"NSAutoreleaseFreedObjectCheckEnabled enabled!");
 
 	// Set current directory for WordPress app
 	NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -159,15 +182,6 @@
 	// set the current dir
 	[fileManager changeCurrentDirectoryPath:currentDirectoryPath];
     
-	// Check for pending crash reports
-	PLCrashReporter *crashReporter = [PLCrashReporter sharedReporter];
-	if (![crashReporter hasPendingCrashReport]) {
-        // Empty log file if we didn't crash last time
-        [[FileLogger sharedInstance] reset];
-    }
-	[FileLogger log:@"Launching WordPress for iOS %@...", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleVersion"]];
-    [FileLogger log:@"device: %@, iOS %@", [[UIDevice currentDevice] platform], [[UIDevice currentDevice] systemVersion]];
-
     [[AFNetworkActivityIndicatorManager sharedManager] setEnabled:YES];
     [self setupReachability];
 
@@ -200,7 +214,6 @@
 	//listener for XML-RPC errors
 	//in the future we could put the errors message in a dedicated screen that users can bring to front when samething went wrong, and can take a look at the error msg.
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(showNotificationErrorAlert:) name:kXML_RPC_ERROR_OCCURS object:nil];
-	//TODO: we should add a screen? in which print the error msgs that are from async uploading errors --> PostUploadFailed
 	
 	// another notification message came from comments --> CommentUploadFailed
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(showNotificationErrorAlert:) name:@"CommentUploadFailed" object:nil];
@@ -350,7 +363,6 @@
     [[NSNotificationCenter defaultCenter] postNotificationName:@"ApplicationDidBecomeActive" object:nil];
     
     // Clear notifications badge and update server
-    // TODO: read/unread management when there's an API for it
     [self setAppBadge];
     [[WordPressComApi sharedApi] syncPushNotificationInfo];
 }
@@ -476,6 +488,23 @@
     } else {
         [panelNavigationController popToRootViewControllerAnimated:YES];
     }
+}
+
+- (void)useDefaultUserAgent {
+    NSString *ua = [[NSUserDefaults standardUserDefaults] stringForKey:@"DefaultUserAgent"];
+    NSDictionary *dictionary = [[NSDictionary alloc] initWithObjectsAndKeys:ua, @"UserAgent", nil];
+    // We have to call registerDefaults else the change isn't picked up by UIWebViews.
+    [[NSUserDefaults standardUserDefaults] registerDefaults:dictionary];
+    WPLog(@"User-Agent set to: %@", ua);
+}
+
+- (void)useAppUserAgent {
+    NSString *ua = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppUserAgent"];
+    NSDictionary *dictionary = [[NSDictionary alloc] initWithObjectsAndKeys:ua, @"UserAgent", nil];
+    // We have to call registerDefaults else the change isn't picked up by UIWebViews.
+    [[NSUserDefaults standardUserDefaults] registerDefaults:dictionary];
+    
+    WPLog(@"User-Agent set to: %@", ua);
 }
 
 #pragma mark -
@@ -832,7 +861,6 @@
 	//NSLog(@"device_model: %@", deviceModel);
 	
 	//handle data coming back
-	// ** TODO @frsh: This needs to be completely redone with a custom helper class. ***
 	statsData = [[NSMutableData alloc] init];
 	
 	NSMutableURLRequest *theRequest=[NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"http://api.wordpress.org/iphoneapp/update-check/1.0/"]
@@ -925,13 +953,17 @@
 					 stringByReplacingOccurrencesOfString: @"<" withString: @""]
 					stringByReplacingOccurrencesOfString: @">" withString: @""]
 				   stringByReplacingOccurrencesOfString: @" " withString: @""];
-	
-	// Store the token
-	[[NSUserDefaults standardUserDefaults] setObject:myToken forKey:@"apnsDeviceToken"];
-	NSLog(@"Registered for push notifications and stored device token: %@", 
-		  [[NSUserDefaults standardUserDefaults] objectForKey:@"apnsDeviceToken"]);
 
-    [self sendApnsToken];
+    NSLog(@"Registered for push notifications and stored device token: %@",
+          [[NSUserDefaults standardUserDefaults] objectForKey:@"apnsDeviceToken"]);
+
+	// Store the token
+    NSString *previousToken = [[NSUserDefaults standardUserDefaults] objectForKey:@"apnsDeviceToken"];
+    if (![previousToken isEqualToString:myToken]) {
+        [[NSUserDefaults standardUserDefaults] setObject:myToken forKey:@"apnsDeviceToken"];
+
+        [self sendApnsToken];
+    }
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
@@ -972,7 +1004,7 @@
                 }
             }
             
-            //we should show an alert since the OS doesn't show anything in this case. Unfortunately no sound!!
+            //we should show an alert since the OS doesn't show anything in this case. <s>Unfortunately no sound!!</s> Manual sound!
             if([self isAlertRunning] != YES) {
                 id comment = [[userInfo objectForKey:@"aps"] objectForKey:@"alert"];
                 NSString *message = nil;
@@ -1013,6 +1045,7 @@
                     
                     [alert show];
                     [[WordPressComApi sharedApi] syncPushNotificationInfo];
+                    [SoundUtil playNotificationSound];
                 }
             }
             break;
@@ -1381,6 +1414,4 @@
 {
 }
 
-
 @end
-

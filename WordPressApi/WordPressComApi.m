@@ -199,13 +199,7 @@ NSString *const WordPressComApiErrorCodeKey = @"WordPressComApiErrorCodeKey";
     // Remove all notes
     [Note removeAllNotesWithContext:[[WordPressAppDelegate sharedWordPressApplicationDelegate] managedObjectContext]];
 
-    // Clear reader caches and cookies
-    // FIXME: this doesn't seem to log out the reader properly
-    NSArray *readerCookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:[NSURL URLWithString:kMobileReaderURL]];
-    for (NSHTTPCookie *cookie in readerCookies) {
-        [[NSHTTPCookieStorage sharedHTTPCookieStorage] deleteCookie:cookie];
-    }
-    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    [self clearReaderCookies];
 
     // Notify the world
     [[NSNotificationCenter defaultCenter] postNotificationName:WordPressComApiDidLogoutNotification object:nil];
@@ -223,6 +217,21 @@ NSString *const WordPressComApiErrorCodeKey = @"WordPressComApiErrorCodeKey";
     self.password = [SFHFKeychainUtils getPasswordForUsername:self.username
                                           andServiceName:@"WordPress.com"
                                                    error:&error];
+    [self clearReaderCookies];
+    [[NSNotificationCenter defaultCenter] postNotificationName:WordPressComApiDidLogoutNotification object:nil];
+    [WordPressAppDelegate sharedWordPressApplicationDelegate].isWPcomAuthenticated = YES;
+    [[WordPressAppDelegate sharedWordPressApplicationDelegate] registerForPushNotifications];
+    [[NSNotificationCenter defaultCenter] postNotificationName:WordPressComApiDidLoginNotification object:self.username];
+}
+
+- (void)clearReaderCookies {
+    NSArray *readerCookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies];
+    for (NSHTTPCookie *cookie in readerCookies) {
+        if ([cookie.domain hasSuffix:@"wordpress.com"]) {
+            [[NSHTTPCookieStorage sharedHTTPCookieStorage] deleteCookie:cookie];
+        }
+    }
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
 }
 
 #pragma mark - Notifications
