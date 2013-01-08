@@ -156,6 +156,7 @@ NS_ENUM(NSUInteger, NotifcationCommentCellType){
     if (self.post == nil) {
         [self.user getPath:postPath parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
             self.post = responseObject;
+            self.disclosureIndicator.hidden = NO;
             self.postBanner.titleLabel.text = [[self.post valueForKeyPath:@"title"] stringByDecodingXMLCharacters];
             id authorAvatarURL = [self.post valueForKeyPath:@"author.avatar_URL"];
             if ([authorAvatarURL isKindOfClass:[NSString class]]) {
@@ -384,6 +385,14 @@ NS_ENUM(NSUInteger, NotifcationCommentCellType){
         }
     }];
 
+}
+
+- (IBAction)highlightHeader:(id)sender {
+    [_postBanner setBackgroundColor:[UIColor UIColorFromHex:0xE3E3E3]];
+}
+
+- (IBAction)resetHeader:(id)sender {
+    [_postBanner setBackgroundColor:[UIColor UIColorFromHex:0xF2F2F2]];
 }
 
 #pragma mark - REST API

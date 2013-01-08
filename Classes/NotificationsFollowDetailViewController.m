@@ -272,7 +272,7 @@
 }
 
 - (IBAction)highlightButton:(id)sender {
-    [_postTitleButton setBackgroundColor:[UIColor UIColorFromHex:0xEDEDED]];
+    [_postTitleButton setBackgroundColor:[UIColor UIColorFromHex:0xE3E3E3]];
 }
 
 - (IBAction)resetButton:(id)sender {

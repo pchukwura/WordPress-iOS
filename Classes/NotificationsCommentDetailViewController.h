@@ -33,6 +33,7 @@
 @property (nonatomic, strong) IBOutlet UIImageView *noteImageView;
 
 @property (nonatomic, strong) IBOutlet NoteCommentPostBanner *postBanner;
+@property (nonatomic, strong) IBOutlet UITableViewCell *disclosureIndicator;
 
 @property (nonatomic, strong) IBOutlet UITableView *tableView;
 
@@ -50,6 +51,8 @@
 - (IBAction)cancelReply:(id)sender;
 - (IBAction)publishReply:(id)sender;
 - (IBAction)startReply:(id)sender;
+- (IBAction)highlightHeader:(id)sender;
+- (IBAction)resetHeader:(id)sender;
 
 - (IBAction)visitPostURL:(id)sender;
 - (void)displayNote;
