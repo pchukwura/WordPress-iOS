@@ -223,9 +223,7 @@
     NotificationsFollowTableViewCell *cell = (NotificationsFollowTableViewCell *)[self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:0]];
     
     [cell setFollowing: !isFollowing];
-    
-    if (self.panelNavigationController)
-        [self.panelNavigationController showToastWithMessage:(isFollowing) ?  NSLocalizedString(@"Unfollowed", @"User unfollowed a blog") : NSLocalizedString(@"Followed", @"User followed a blog") andImage:[UIImage imageNamed:[NSString stringWithFormat:@"action_icon_%@", (isFollowing) ? @"unfollowed" : @"followed"]]];
+
     
     NSUInteger blogID = [[noteDetails objectForKey:@"blog_id"] intValue];
     if (blogID) {
