@@ -574,7 +574,7 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
         ttl = [NSString stringWithFormat:ttl, [self.title lowercaseString]];
 
         NSString *msg = @"";
-        if (![self.entityName isEqualToString:@"Comment"]) {
+        if ([self userCanCreateEntity]) {
             msg = NSLocalizedString(@"Why not create one?", @"A call to action to create a post or page.");
         }
         self.noResultsView = [WPInfoView WPInfoViewWithTitle:ttl
@@ -833,6 +833,10 @@ NSTimeInterval const WPTableViewControllerRefreshTimeout = 300; // 5 minutes
 }
 
 #pragma mark - Subclass methods
+
+- (BOOL)userCanCreateEntity {
+	return NO;
+}
 
 #define AssertSubclassMethod() NSAssert(false, @"You must override %@ in a subclass", NSStringFromSelector(_cmd))
 #define AssertNoBlogSubclassMethod() NSAssert(self.blog, @"You must override %@ in a subclass if there is no blog", NSStringFromSelector(_cmd))
